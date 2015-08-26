@@ -1,0 +1,16 @@
+[package]
+name = "pyramid_viewport"
+version = "0.1.0"
+authors = ["Fredrik Noren <fredrik.jw.noren@gmail.com>"]
+
+[dependencies]
+gl = "*"
+libc = "*"
+cgmath = "0.2.0"
+peg = "0.3.0"
+image = "*"
+time = "*"
+glutin = "*"
+
+[dependencies.pyramid]
+path = "../pyramid"

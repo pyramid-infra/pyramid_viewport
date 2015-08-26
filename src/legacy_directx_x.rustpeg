@@ -1,0 +1,104 @@
+use legacy_directx_x::*;
+
+#[pub]
+file -> DXFrame
+  = [^\r\n]* sep* frame:frame sep* { frame }
+
+
+frame -> DXFrame
+  = "Frame" sep* name:identifier sep* "{" sep*
+      transform:frame_transform_matrix sep*
+      mesh:mesh sep*
+    "}" {
+    DXFrame {
+      name: name,
+      transform: transform,
+      mesh: mesh
+    }
+  }
+
+frame_transform_matrix -> Vec<f32>
+ = "FrameTransformMatrix" sep* "{" sep* values:float_array_1 sep* ";" sep* "}" {
+  values
+ }
+
+
+mesh -> DXMesh
+  = "Mesh" sep* name:identifier sep* "{" sep*
+    vertices:sized_float_array_array_2 sep*
+    indices:sized_integer_array_array_1 sep*
+    normals:mesh_normals sep*
+    texcoords:mesh_texture_coords sep*
+    "}" {
+      DXMesh { name:name, vertices:vertices, indices:indices, normals:normals, texcoords:texcoords }
+    }
+
+
+mesh_normals -> DXMeshNormals
+  = "MeshNormals" sep* "{" sep*
+    vertices:sized_float_array_array_1 sep*
+    indices:sized_integer_array_array_1 sep*
+  "}" {
+    DXMeshNormals { vertices: vertices, indices: indices }
+  }
+
+
+mesh_texture_coords -> Vec<Vec<f32>>
+  = "MeshTextureCoords" sep* "{" sep*
+      vals:sized_float_array_array_2 sep*
+    "}" {
+      vals
+    }
+
+
+integer_array -> Vec<i64>
+  = vals:integer_with_sep ** "," sep* {
+    vals
+  }
+
+float_array_1 -> Vec<f32>
+  = sep* v:float_with_sep ** "," sep* ";" sep* { v }
+
+sized_float_array_array_1 -> Vec<Vec<f32>>
+  = size:integer sep* ";" sep* vals:float_array_1 ** "," sep* ";" sep* {
+    vals
+  }
+
+float_array_2 -> Vec<f32>
+  = sep* v:float_with_sep ** ";" sep* ";" sep* { v }
+
+sized_float_array_array_2 -> Vec<Vec<f32>>
+  = size:integer sep* ";" sep* vals:float_array_2 ** "," sep* ";" sep* {
+    vals
+  }
+
+integer_array_1 -> Vec<i64>
+  = sep* v:integer_with_sep ** "," sep* ";" sep* { v }
+
+sized_integer_array_1 -> Vec<i64>
+  = sep* size:integer sep* ";" sep* vals:integer_array_1 sep* {
+    vals
+  }
+
+sized_integer_array_array_1 -> Vec<Vec<i64>>
+  = size:integer sep* ";" sep* vals:sized_integer_array_1 ** "," sep* ";" {
+    vals
+  }
+
+
+float_with_sep -> f32
+  = sep* v:float sep* { v }
+
+integer_with_sep -> i64
+  = sep* v:integer sep* { v }
+
+identifier -> String
+  = [a-zA-Z_]+[a-zA-Z_0-9]* { match_str.to_string() }
+
+float -> f32
+  = [-]?[0-9]+[.][0-9]+ { match_str.parse().unwrap() }
+
+integer -> i64
+  = [-]?[0-9]+ { match_str.parse().unwrap() }
+
+sep = [ \t\r\n]
