@@ -31,6 +31,11 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use cgmath::*;
 use std::mem;
+use gl::types::*;
+use std::str;
+
+static shader_basic_vs: &'static [u8] = include_bytes!("../shaders/basic_vs.glsl");
+static shader_basic_fs: &'static [u8] = include_bytes!("../shaders/basic_fs.glsl");
 
 pub struct ViewportSubSystem {
     window: glutin::Window,
@@ -39,6 +44,7 @@ pub struct ViewportSubSystem {
     textures_to_resolve: Vec<AsyncPromise<RgbaImage>>,
     meshes: HashMap<PropNode, Promise<GLMesh>>,
     textures: HashMap<PropNode, Promise<GLTexture>>,
+    shaders: HashMap<String, GLuint>,
     default_texture: PropNode,
 }
 
@@ -53,15 +59,24 @@ impl ViewportSubSystem {
             gl::ClearColor(1.0, 1.0, 0.0, 1.0);
         }
 
-        ViewportSubSystem {
+        let mut viewport = ViewportSubSystem {
             window: window,
             renderer: Renderer::new(),
             meshes_to_resolve: vec![],
             textures_to_resolve: vec![],
             meshes: HashMap::new(),
             textures: HashMap::new(),
+            shaders: HashMap::new(),
             default_texture: propnode_parser::parse("static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 }").unwrap(),
-        }
+        };
+
+        let vs = compile_shader(str::from_utf8(shader_basic_vs).unwrap(), gl::VERTEX_SHADER);
+        let fs = compile_shader(str::from_utf8(shader_basic_fs).unwrap(), gl::FRAGMENT_SHADER);
+        let shader_program = link_program(vs, fs);
+
+        viewport.shaders.insert("basic".to_string(), shader_program);
+
+        viewport
     }
 }
 
@@ -73,6 +88,7 @@ pub fn new() -> Box<SubSystem> {
 impl ViewportSubSystem {
 
     fn renderer_add(&mut self, system: &System, entity_id: &EntityId) {
+        let shader = *self.shaders.get("basic").unwrap();
         let mesh_pn: PropNode = match system.get_property_value(entity_id, "mesh") {
             Ok(mesh) => mesh,
             Err(err) => return ()
@@ -85,9 +101,9 @@ impl ViewportSubSystem {
             Some(mesh) => mesh,
             None => {
                 let mesh_pn2 = mesh_pn.clone();
-                let shader_program = self.renderer.shader_program.clone();
+                let shader = shader.clone();
                 let mesh_async_promise = AsyncPromise::new(move || load_mesh(&mesh_pn2).unwrap());
-                let gl_mesh_promise = mesh_async_promise.promise.then(move |mesh| gl_resources::create_mesh(shader_program, mesh));
+                let gl_mesh_promise = mesh_async_promise.promise.then(move |mesh| gl_resources::create_mesh(shader, mesh));
                 self.meshes_to_resolve.push(mesh_async_promise);
                 self.meshes.insert(mesh_pn, gl_mesh_promise.clone());
                 gl_mesh_promise
@@ -115,6 +131,7 @@ impl ViewportSubSystem {
         let node = {
             RenderNode {
                 id: *entity_id,
+                shader: shader,
                 mesh: mesh,
                 texture: texture,
                 transform: match system.get_property_value(entity_id, "transform") {

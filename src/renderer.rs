@@ -9,7 +9,6 @@ use promise::*;
 
 use gl::types::*;
 use std::fs::File;
-use std::str;
 use std::io::prelude::*;
 use cgmath::*;
 use std::ptr;
@@ -19,12 +18,12 @@ use std::mem;
 
 
 pub struct Renderer {
-    nodes: Vec<RenderNode>,
-    pub shader_program: GLuint
+    nodes: Vec<RenderNode>
 }
 
 pub struct RenderNode {
     pub id: u64,
+    pub shader: GLuint,
     pub mesh: Promise<GLMesh>,
     pub transform: Matrix4<f32>,
     pub texture: Promise<GLTexture>
@@ -33,33 +32,24 @@ pub struct RenderNode {
 
 impl Renderer {
     pub fn new() -> Renderer {
-        // Create GLSL shaders
-        let vs = compile_shader(&string_from_file("shaders/basic_vs.glsl").unwrap().to_string(), gl::VERTEX_SHADER);
-        let fs = compile_shader(&string_from_file("shaders/basic_fs.glsl").unwrap().to_string(), gl::FRAGMENT_SHADER);
-        let shader_program = link_program(vs, fs);
-
-        unsafe {
-            // Use shader program
-            gl::UseProgram(shader_program);
-            gl::BindFragDataLocation(shader_program, 0,
-                                     CString::new("out_color").unwrap().as_ptr());
-            gl::Disable(gl::CULL_FACE);
-        }
-
         Renderer {
-            nodes: vec![],
-            shader_program: shader_program
+            nodes: vec![]
         }
     }
     pub fn render(&self) {
         unsafe {
+            gl::Disable(gl::CULL_FACE);
             gl::Enable(gl::DEPTH_TEST);
             for node in &self.nodes {
+                gl::UseProgram(node.shader);
+                gl::BindFragDataLocation(node.shader, 0,
+                                         CString::new("out_color").unwrap().as_ptr());
+
                 if let &Some(ref mesh) = &*node.mesh.value() {
                     gl::BindVertexArray(mesh.vao);
                 }
 
-                let uniTrans = gl::GetUniformLocation(self.shader_program, CString::new("trans").unwrap().as_ptr());
+                let uniTrans = gl::GetUniformLocation(node.shader, CString::new("trans").unwrap().as_ptr());
 
                 let t: [f32; 16] = mem::transmute(node.transform);
                 gl::UniformMatrix4fv(uniTrans, 1, gl::FALSE, t.as_ptr());
@@ -90,59 +80,3 @@ impl Renderer {
         }
     }
 }
-
-fn string_from_file(filename: &str) -> Option<String> {
-    let mut file = File::open(filename).unwrap();
-    let mut string = String::new();
-    file.read_to_string(&mut string);
-    return Some(string);
-}
-
-
-fn compile_shader(src: &str, ty: GLenum) -> GLuint {
-    let shader;
-
-    unsafe {
-        shader = gl::CreateShader(ty);
-        // Attempt to compile the shader
-        let c_str = CString::new(src.as_bytes()).unwrap();
-        gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
-        gl::CompileShader(shader);
-
-        // Get the compile status
-        let mut status = gl::FALSE as GLint;
-        gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut status);
-
-        // Fail on error
-        if status != (gl::TRUE as GLint) {
-            let mut len = 0;
-            gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
-            let mut buf = Vec::with_capacity(len as usize);
-            buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-            gl::GetShaderInfoLog(shader, len, ptr::null_mut(), buf.as_mut_ptr() as *mut GLchar);
-            panic!("{}", str::from_utf8(&buf).ok().expect("ShaderInfoLog not valid utf8"));
-        }
-    }
-    shader
-}
-
-fn link_program(vs: GLuint, fs: GLuint) -> GLuint { unsafe {
-    let program = gl::CreateProgram();
-    gl::AttachShader(program, vs);
-    gl::AttachShader(program, fs);
-    gl::LinkProgram(program);
-    // Get the link status
-    let mut status = gl::FALSE as GLint;
-    gl::GetProgramiv(program, gl::LINK_STATUS, &mut status);
-
-    // Fail on error
-    if status != (gl::TRUE as GLint) {
-        let mut len: GLint = 0;
-        gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
-        let mut buf = Vec::with_capacity(len as usize);
-        buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-        gl::GetProgramInfoLog(program, len, ptr::null_mut(), buf.as_mut_ptr() as *mut GLchar);
-        panic!("{}", str::from_utf8(&buf).ok().expect("ProgramInfoLog not valid utf8"));
-    }
-    program
-} }

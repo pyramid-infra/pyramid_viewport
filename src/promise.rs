@@ -45,6 +45,12 @@ impl<T: 'static> PromiseInternal<T> {
             then: vec![]
         }
     }
+    fn resolved(value: T) -> PromiseInternal<T> {
+        PromiseInternal {
+            value: Some(value),
+            then: vec![]
+        }
+    }
     fn resolve(&mut self, value: T) {
         for ref mut then in &self.then {
             then.apply(&value);
@@ -57,6 +63,11 @@ impl<T: 'static> Promise<T> {
     pub fn new() -> Promise<T> {
         Promise {
             internal: Rc::new(RefCell::new(PromiseInternal::new())),
+        }
+    }
+    pub fn resolved(value: T) -> Promise<T> {
+        Promise {
+            internal: Rc::new(RefCell::new(PromiseInternal::resolved(value))),
         }
     }
     pub fn resolve(&self, value: T) {
