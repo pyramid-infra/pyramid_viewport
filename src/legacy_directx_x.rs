@@ -7,7 +7,7 @@ use resources::*;
 pub struct DXFrame {
     pub name: String,
     pub transform: Vec<f32>,
-    pub mesh: DXMesh
+    pub mesh: Option<DXMesh>
 }
 
 #[derive(PartialEq, Debug, Clone)]

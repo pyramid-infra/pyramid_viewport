@@ -54,7 +54,7 @@ pub fn load_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropTranslat
             return match file.read_to_string(&mut content) {
                 Ok(_) => {
                     let dx = legacy_directx_x_parse::file(&content.as_str()).unwrap();
-                    let mesh = dx.mesh.to_mesh();
+                    let mesh = dx.into_iter().find(|x| x.mesh.is_some()).unwrap().mesh.unwrap().to_mesh();
                     println!("Loaded mesh {}", filename);
                     return Ok(mesh);
                 },

@@ -1,15 +1,15 @@
 use legacy_directx_x::*;
 
 #[pub]
-file -> DXFrame
-  = [^\r\n]* sep* frame:frame sep* { frame }
+file -> Vec<DXFrame>
+  = [^\r\n]* sep* frames:frame+ sep* { frames }
 
 
 frame -> DXFrame
   = "Frame" sep* name:identifier sep* "{" sep*
       transform:frame_transform_matrix sep*
-      mesh:mesh sep*
-    "}" {
+      mesh:mesh? sep*
+    "}" sep* {
     DXFrame {
       name: name,
       transform: transform,
