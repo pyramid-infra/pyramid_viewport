@@ -16,6 +16,7 @@ mod legacy_directx_x;
 mod legacy_directx_x_test;
 mod promise;
 mod gl_resources;
+mod fps_counter;
 
 use pyramid::interface::*;
 use pyramid::propnode::*;
@@ -26,6 +27,8 @@ use renderer::*;
 use promise::*;
 use gl_resources::*;
 use resources::*;
+use fps_counter::*;
+
 use image::RgbaImage;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -33,11 +36,14 @@ use cgmath::*;
 use std::mem;
 use gl::types::*;
 use std::str;
+use std::path::Path;
+use std::path::PathBuf;
 
-static shader_basic_vs: &'static [u8] = include_bytes!("../shaders/basic_vs.glsl");
-static shader_basic_fs: &'static [u8] = include_bytes!("../shaders/basic_fs.glsl");
+static SHADER_BASIC_VS: &'static [u8] = include_bytes!("../shaders/basic_vs.glsl");
+static SHADER_BASIC_FS: &'static [u8] = include_bytes!("../shaders/basic_fs.glsl");
 
 pub struct ViewportSubSystem {
+    root_path: PathBuf,
     window: glutin::Window,
     renderer: Renderer,
     meshes_to_resolve: Vec<AsyncPromise<Mesh>>,
@@ -46,10 +52,11 @@ pub struct ViewportSubSystem {
     textures: HashMap<PropNode, Promise<GLTexture>>,
     shaders: HashMap<String, GLuint>,
     default_texture: PropNode,
+    fps_counter: FpsCounter
 }
 
 impl ViewportSubSystem {
-    pub fn new() -> ViewportSubSystem {
+    pub fn new(root_path: PathBuf) -> ViewportSubSystem {
         let window = glutin::Window::new().unwrap();
 
         unsafe { window.make_current() };
@@ -60,6 +67,7 @@ impl ViewportSubSystem {
         }
 
         let mut viewport = ViewportSubSystem {
+            root_path: root_path,
             window: window,
             renderer: Renderer::new(),
             meshes_to_resolve: vec![],
@@ -68,21 +76,17 @@ impl ViewportSubSystem {
             textures: HashMap::new(),
             shaders: HashMap::new(),
             default_texture: propnode_parser::parse("static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 }").unwrap(),
+            fps_counter: FpsCounter::new()
         };
 
-        let vs = compile_shader(str::from_utf8(shader_basic_vs).unwrap(), gl::VERTEX_SHADER);
-        let fs = compile_shader(str::from_utf8(shader_basic_fs).unwrap(), gl::FRAGMENT_SHADER);
+        let vs = compile_shader(str::from_utf8(SHADER_BASIC_VS).unwrap(), gl::VERTEX_SHADER);
+        let fs = compile_shader(str::from_utf8(SHADER_BASIC_FS).unwrap(), gl::FRAGMENT_SHADER);
         let shader_program = link_program(vs, fs);
 
         viewport.shaders.insert("basic".to_string(), shader_program);
 
         viewport
     }
-}
-
-#[no_mangle]
-pub fn new() -> Box<SubSystem> {
-    Box::new(ViewportSubSystem::new())
 }
 
 impl ViewportSubSystem {
@@ -102,7 +106,8 @@ impl ViewportSubSystem {
             None => {
                 let mesh_pn2 = mesh_pn.clone();
                 let shader = shader.clone();
-                let mesh_async_promise = AsyncPromise::new(move || load_mesh(&mesh_pn2).unwrap());
+                let root_path = self.root_path.clone();
+                let mesh_async_promise = AsyncPromise::new(move || load_mesh(&root_path, &mesh_pn2).unwrap());
                 let gl_mesh_promise = mesh_async_promise.promise.then(move |mesh| gl_resources::create_mesh(shader, mesh));
                 self.meshes_to_resolve.push(mesh_async_promise);
                 self.meshes.insert(mesh_pn, gl_mesh_promise.clone());
@@ -121,7 +126,8 @@ impl ViewportSubSystem {
             Some(texture) => texture,
             None => {
                 let texture_pn2 = texture_pn.clone();
-                let texture_async_promise = AsyncPromise::new(move || load_texture(&texture_pn2).unwrap());
+                let root_path = self.root_path.clone();
+                let texture_async_promise = AsyncPromise::new(move || load_texture(&root_path, &texture_pn2).unwrap());
                 let gl_texture_promise = texture_async_promise.promise.then(move |texture| gl_resources::create_texture(texture.clone()));
                 self.textures_to_resolve.push(texture_async_promise);
                 self.textures.insert(texture_pn, gl_texture_promise.clone());
@@ -177,6 +183,8 @@ impl SubSystem for ViewportSubSystem {
     }
 
     fn update(&mut self, system: &mut System, delta_time: time::Duration) {
+        self.fps_counter.add_frame(delta_time);
+        self.window.set_title(format!("pyramid {:.0} fps", self.fps_counter.fps()).as_str());
 
         let meshes_to_resolve = mem::replace(&mut self.meshes_to_resolve, Vec::new());
         self.meshes_to_resolve = meshes_to_resolve.into_iter().filter(|m| !m.try_resolve()).collect();

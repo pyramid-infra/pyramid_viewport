@@ -22,7 +22,7 @@ pub struct Mesh {
     pub indices: Vec<u32>
 }
 
-pub fn load_mesh(node: &PropNode) -> Result<Mesh, PropTranslateErr> {
+pub fn load_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropTranslateErr> {
     let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
 
     match transform_name.as_str() {
@@ -43,8 +43,9 @@ pub fn load_mesh(node: &PropNode) -> Result<Mesh, PropTranslateErr> {
         },
         "mesh_from_file" => {
             let filename = try!(arg.as_string());
-            let path = Path::new(filename);
-            println!("Loading mesh {}", filename);
+            let path_buff = root_path.join(Path::new(filename));
+            let path = path_buff.as_path();
+            println!("Loading mesh {:?}", path);
             let mut file = match File::open(&path) {
                 Err(why) => panic!("couldn't open {}: {}", filename, Error::description(&why)),
                 Ok(file) => file,
@@ -64,7 +65,7 @@ pub fn load_mesh(node: &PropNode) -> Result<Mesh, PropTranslateErr> {
     }
 }
 
-pub fn load_texture(node: &PropNode) -> Result<RgbaImage, PropTranslateErr> {
+pub fn load_texture(root_path: &Path, node: &PropNode) -> Result<RgbaImage, PropTranslateErr> {
     let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
 
     match transform_name.as_str() {
@@ -93,8 +94,10 @@ pub fn load_texture(node: &PropNode) -> Result<RgbaImage, PropTranslateErr> {
         },
         "texture_from_file" => {
             let filename = try!(arg.as_string());
-            println!("Loading image {}", filename);
-            let img = image::open(&Path::new(filename));
+            let path_buff = root_path.join(Path::new(filename));
+            let path = path_buff.as_path();
+            println!("Loading image {:?}", path);
+            let img = image::open(&path);
             println!("Image loaded!");
             return match img {
                 Ok(img) => Ok(img.to_rgba()),
