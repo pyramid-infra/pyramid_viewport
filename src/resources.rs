@@ -53,7 +53,10 @@ pub fn load_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropTranslat
             let mut content = String::new();
             return match file.read_to_string(&mut content) {
                 Ok(_) => {
-                    let dx = legacy_directx_x_parse::file(&content.as_str()).unwrap();
+                    let dx = match legacy_directx_x_parse::file(&content.as_str()) {
+                        Ok(mesh) => mesh,
+                        Err(err) => panic!("Failed to load mesh {:?} with error: {:?}", path, err)
+                    };
                     let mesh = dx.into_iter().find(|x| x.mesh.is_some()).unwrap().mesh.unwrap().to_mesh();
                     println!("Loaded mesh {}", filename);
                     return Ok(mesh);
