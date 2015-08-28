@@ -16,7 +16,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::*;
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Mesh {
     pub vertices: Vec<f32>,
     pub indices: Vec<u32>
@@ -42,12 +42,28 @@ pub fn load_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropTranslat
             });
         },
         "mesh_from_file" => {
-            let filename = try!(arg.as_string());
-            let path_buff = root_path.join(Path::new(filename));
+            let config = match arg.as_string() {
+                Ok(filename) => (filename.clone(), "polySurface1".to_string()),
+                Err(err) => {
+                    match arg.as_object() {
+                        Ok(arg) => {
+                            (match arg.get("filename") {
+                                Some(filename) => try!(filename.as_string()).clone(),
+                                None => return Err(PropTranslateErr::NoSuchField { field: "filename".to_string() })
+                            }, match arg.get("mesh_id") {
+                                Some(mesh_id) => try!(mesh_id.as_string()).clone(),
+                                None => "polySurface1".to_string()
+                            })
+                        },
+                        Err(err) => return Err(err)
+                    }
+                }
+            };
+            let path_buff = root_path.join(Path::new(&config.0));
             let path = path_buff.as_path();
             println!("Loading mesh {:?}", path);
             let mut file = match File::open(&path) {
-                Err(why) => panic!("couldn't open {}: {}", filename, Error::description(&why)),
+                Err(why) => panic!("couldn't open {}: {}", config.0, Error::description(&why)),
                 Ok(file) => file,
             };
             let mut content = String::new();
@@ -57,11 +73,14 @@ pub fn load_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropTranslat
                         Ok(mesh) => mesh,
                         Err(err) => panic!("Failed to load mesh {:?} with error: {:?}", path, err)
                     };
-                    let mesh = dx.into_iter().find(|x| x.mesh.is_some()).unwrap().mesh.unwrap().to_mesh();
-                    println!("Loaded mesh {}", filename);
+                    let mesh = match dx.to_mesh(config.1) {
+                        Ok(mesh) => mesh,
+                        Err(err) => panic!("Failed to load mesh {:?} with error: {:?}", path, err)
+                    };
+                    println!("Loaded mesh {}", config.0);
                     return Ok(mesh);
                 },
-                Err(err) => Err(PropTranslateErr::Generic(format!("Failed to load mesh: {}: {:?}", filename, err)))
+                Err(err) => Err(PropTranslateErr::Generic(format!("Failed to load mesh: {}: {:?}", config.0, err)))
             }
         },
         _ => Err(PropTranslateErr::UnrecognizedPropTransform(transform_name.clone()))
