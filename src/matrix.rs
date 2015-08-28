@@ -12,6 +12,18 @@ pub fn from_prop_node(node: &PropNode) -> Result<Matrix4<f32>, PropTranslateErr>
             let arg = try!(arg.as_object());
             return Ok(Matrix4::from_translation(&(try!(to_vec3(arg)))));
         },
+        "rotate_x" => {
+            let arg: Rad<f32> = Rad { s: *try!(arg.as_float()) };
+            return Ok(Quaternion::from_angle_x(arg).into());
+        },
+        "rotate_y" => {
+            let arg: Rad<f32> = Rad { s: *try!(arg.as_float()) };
+            return Ok(Quaternion::from_angle_y(arg).into());
+        },
+        "rotate_z" => {
+            let arg: Rad<f32> = Rad { s: *try!(arg.as_float()) };
+            return Ok(Quaternion::from_angle_z(arg).into());
+        },
         "scale" => {
             let arg = try!(arg.as_object());
             let v = try!(to_vec3(arg));
