@@ -40,12 +40,12 @@ multiline_values -> DXNode
   }
 
 singleline_values -> Vec<Vec<f32>>
-  = space* vals:singleline_values_2 ++ ";" space* ";" space* {
+  = space* vals:singleline_values_2+ space* {
     vals
   }
 
 singleline_values_2 -> Vec<f32>
-  = space* nums:number_with_space ++ "," space* {
+  = space* nums:number_with_space ** "," space* ";" !newline space* {
     nums
   }
 
