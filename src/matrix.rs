@@ -8,6 +8,14 @@ use cgmath::*;
 pub fn from_prop_node(node: &PropNode) -> Result<Matrix4<f32>, PropTranslateErr> {
     let &PropTransform { ref name, ref arg } = try!(node.as_transform());
     match name.as_str() {
+        "matrix" => {
+            let arg = try!(arg.as_float_array());
+            return Ok(Matrix4::new(
+                arg[0], arg[1], arg[2], arg[3],
+                arg[4], arg[5], arg[6], arg[7],
+                arg[8], arg[9], arg[10], arg[11],
+                arg[12], arg[13], arg[14], arg[15]));
+        },
         "translate" => {
             let arg = try!(arg.as_object());
             return Ok(Matrix4::from_translation(&(try!(to_vec3(arg)))));
