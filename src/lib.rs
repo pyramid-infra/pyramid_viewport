@@ -111,7 +111,7 @@ impl ViewportSubSystem {
                 gl_mesh_promise
             }
         };
-        let texture_pn: PropNode = match system.get_property_value(entity_id, "texture") {
+        let texture_pn: PropNode = match system.get_property_value(entity_id, "diffuse") {
             Ok(pn) => pn,
             Err(err) => self.default_texture.clone()
         };
@@ -156,7 +156,7 @@ impl ISubSystem for ViewportSubSystem {
         //println!("CHANGED {:?}", prop_refs);
         let renderable_changed: HashSet<EntityId> = prop_refs.iter()
             .filter_map(|pr| {
-                if (pr.property_key == "mesh" || pr.property_key == "texture") {
+                if (pr.property_key == "mesh" || pr.property_key == "diffuse") {
                     return Some(pr.entity_id);
                 } else {
                     return None;
