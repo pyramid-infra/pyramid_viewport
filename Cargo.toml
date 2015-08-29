@@ -7,10 +7,12 @@ authors = ["Fredrik Noren <fredrik.jw.noren@gmail.com>"]
 gl = "*"
 libc = "*"
 cgmath = "0.2.0"
-peg = "0.3.0"
 image = "*"
 time = "*"
 glutin = "*"
 
 [dependencies.pyramid]
 path = "../pyramid"
+
+[dependencies.ppromise]
+path = "../ppromise"

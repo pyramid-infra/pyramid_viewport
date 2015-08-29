@@ -1,5 +1,4 @@
-#![feature(plugin, box_patterns, rc_weak, convert, unboxed_closures, core)]
-#![plugin(peg_syntax_ext)]
+#![feature(box_patterns, rc_weak, convert, unboxed_closures, core)]
 
 extern crate gl;
 extern crate libc;
@@ -8,13 +7,11 @@ extern crate cgmath;
 extern crate time;
 extern crate pyramid;
 extern crate glutin;
+extern crate ppromise;
 
 mod renderer;
 mod resources;
 mod matrix;
-mod legacy_directx_x;
-mod legacy_directx_x_test;
-mod promise;
 mod gl_resources;
 mod fps_counter;
 
@@ -24,7 +21,7 @@ use pyramid::document::*;
 use pyramid::*;
 
 use renderer::*;
-use promise::*;
+use ppromise::*;
 use gl_resources::*;
 use resources::*;
 use fps_counter::*;
@@ -91,7 +88,7 @@ impl ViewportSubSystem {
 
 impl ViewportSubSystem {
 
-    fn renderer_add(&mut self, system: &System, entity_id: &EntityId) {
+    fn renderer_add(&mut self, system: &ISystem, entity_id: &EntityId) {
         let shader = *self.shaders.get("basic").unwrap();
         let mesh_pn: PropNode = match system.get_property_value(entity_id, "mesh") {
             Ok(mesh) => mesh,
@@ -153,13 +150,9 @@ impl ViewportSubSystem {
     }
 }
 
-impl SubSystem for ViewportSubSystem {
+impl ISubSystem for ViewportSubSystem {
 
-    fn on_entity_added(&mut self, system: &mut System, entity_id: &EntityId) {
-        let prop_refs: Vec<PropRef> = { system.get_properties(&entity_id).unwrap() };
-        self.on_property_value_change(system, &prop_refs);
-    }
-    fn on_property_value_change(&mut self, system: &mut System, prop_refs: &Vec<PropRef>) {
+    fn on_property_value_change(&mut self, system: &mut ISystem, prop_refs: &Vec<PropRef>) {
         //println!("CHANGED {:?}", prop_refs);
         let renderable_changed: HashSet<EntityId> = prop_refs.iter()
             .filter_map(|pr| {
@@ -182,7 +175,7 @@ impl SubSystem for ViewportSubSystem {
         }
     }
 
-    fn update(&mut self, system: &mut System, delta_time: time::Duration) {
+    fn update(&mut self, system: &mut ISystem, delta_time: time::Duration) {
         self.fps_counter.add_frame(delta_time);
         self.window.set_title(format!("pyramid {:.0} fps", self.fps_counter.fps()).as_str());
 

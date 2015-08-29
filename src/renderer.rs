@@ -5,7 +5,7 @@ extern crate image;
 use pyramid::document::*;
 use resources::*;
 use gl_resources::*;
-use promise::*;
+use ppromise::*;
 
 use gl::types::*;
 use std::fs::File;
