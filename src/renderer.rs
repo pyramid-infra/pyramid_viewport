@@ -18,7 +18,8 @@ use std::mem;
 
 
 pub struct Renderer {
-    nodes: Vec<RenderNode>
+    nodes: Vec<RenderNode>,
+    pub camera: Matrix4<f32>
 }
 
 pub struct RenderNode {
@@ -33,7 +34,8 @@ pub struct RenderNode {
 impl Renderer {
     pub fn new() -> Renderer {
         Renderer {
-            nodes: vec![]
+            nodes: vec![],
+            camera: Matrix4::identity()
         }
     }
     pub fn render(&self) {
@@ -51,7 +53,8 @@ impl Renderer {
 
                 let uniTrans = gl::GetUniformLocation(node.shader, CString::new("trans").unwrap().as_ptr());
 
-                let t: [f32; 16] = mem::transmute(node.transform);
+                let transform = self.camera * node.transform;
+                let t: [f32; 16] = mem::transmute(transform);
                 gl::UniformMatrix4fv(uniTrans, 1, gl::FALSE, t.as_ptr());
 
                 if let &Some(ref texture) = &*node.texture.value() {

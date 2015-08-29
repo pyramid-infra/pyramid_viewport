@@ -173,6 +173,13 @@ impl ISubSystem for ViewportSubSystem {
             };
             self.renderer.set_transform(&pr.entity_id, transform);
         }
+        for pr in prop_refs.iter().filter(|pr| pr.property_key == "camera") {
+            let camera = match system.get_property_value(&pr.entity_id, "camera") {
+                Ok(trans) => matrix::from_prop_node(&trans).unwrap(),
+                Err(err) => Matrix4::identity()
+            };
+            self.renderer.camera = camera;
+        }
     }
 
     fn update(&mut self, system: &mut ISystem, delta_time: time::Duration) {
