@@ -13,6 +13,14 @@ use std::thread;
 use std::sync::mpsc;
 use std::sync::mpsc::*;
 
+fn propnode_to_layout(layout_node_array: &Vec<PropNode>) -> Result<Layout, PropTranslateErr> {
+    let mut layout = vec![];
+    for p in layout_node_array {
+        let p = try!(p.as_array());
+        layout.push((try!(p[0].as_string()).clone(), *try!(p[1].as_integer()) as usize));
+    }
+    Ok(Layout::new(layout))
+}
 
 pub fn propnode_to_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropTranslateErr> {
     let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
@@ -20,19 +28,27 @@ pub fn propnode_to_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropT
     match transform_name.as_str() {
         "static_mesh" => {
             let layout_node_array = try!(try!(arg.get_object_field("layout")).as_array());
-            let mut layout = vec![];
-            for p in layout_node_array {
-                let p = try!(p.as_array());
-                layout.push((try!(p[0].as_string()).clone(), *try!(p[1].as_integer()) as usize));
-            }
+            let layout = try!(propnode_to_layout(layout_node_array));
             let vertices = try!(try!(arg.get_object_field("vertices")).as_float_array());
             let indices = try!(try!(arg.get_object_field("indices")).as_integer_array());
 
             return Ok(Mesh {
-                layout: Layout::new(layout),
+                layout: layout,
                 vertex_data: vertices,
                 element_data: indices.iter().map(|x| *x as u32).collect()
             });
+        },
+        "grid_mesh" => {
+            let obj_arg = try!(arg.as_object());
+            let mut grid = Grid::new();
+            grid.layout = match obj_arg.get("layout") {
+                Some(layout_node) => try!(propnode_to_layout(try!(layout_node.as_array()))),
+                None => Layout::position_texcoord_normal()
+            };
+            grid.n_vertices_width = *try!(try!(arg.get_object_field("n_vertices_width")).as_integer()) as u32;
+            grid.n_vertices_height = *try!(try!(arg.get_object_field("n_vertices_height")).as_integer()) as u32;
+
+            return Ok(grid.into());
         },
         // "mesh_from_file" => {
         //     let config = match arg.as_string() {
