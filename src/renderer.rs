@@ -40,7 +40,7 @@ impl Renderer {
     }
     pub fn render(&self) {
         unsafe {
-            gl::Disable(gl::CULL_FACE);
+            //gl::Disable(gl::CULL_FACE);
             gl::Enable(gl::DEPTH_TEST);
             for node in &self.nodes {
                 gl::UseProgram(node.shader);

@@ -8,6 +8,7 @@ extern crate time;
 extern crate pyramid;
 extern crate glutin;
 extern crate ppromise;
+extern crate mesh;
 
 mod renderer;
 mod resources;
@@ -19,6 +20,8 @@ use pyramid::interface::*;
 use pyramid::propnode::*;
 use pyramid::document::*;
 use pyramid::*;
+
+use mesh::*;
 
 use renderer::*;
 use ppromise::*;
@@ -104,7 +107,7 @@ impl ViewportSubSystem {
                 let mesh_pn2 = mesh_pn.clone();
                 let shader = shader.clone();
                 let root_path = self.root_path.clone();
-                let mesh_async_promise = AsyncPromise::new(move || load_mesh(&root_path, &mesh_pn2).unwrap());
+                let mesh_async_promise = AsyncPromise::new(move || propnode_to_mesh(&root_path, &mesh_pn2).unwrap());
                 let gl_mesh_promise = mesh_async_promise.promise.then(move |mesh| gl_resources::create_mesh(shader, mesh));
                 self.meshes_to_resolve.push(mesh_async_promise);
                 self.meshes.insert(mesh_pn, gl_mesh_promise.clone());
@@ -124,7 +127,7 @@ impl ViewportSubSystem {
             None => {
                 let texture_pn2 = texture_pn.clone();
                 let root_path = self.root_path.clone();
-                let texture_async_promise = AsyncPromise::new(move || load_texture(&root_path, &texture_pn2).unwrap());
+                let texture_async_promise = AsyncPromise::new(move || propnode_to_texture(&root_path, &texture_pn2).unwrap());
                 let gl_texture_promise = texture_async_promise.promise.then(move |texture| gl_resources::create_texture(texture.clone()));
                 self.textures_to_resolve.push(texture_async_promise);
                 self.textures.insert(texture_pn, gl_texture_promise.clone());

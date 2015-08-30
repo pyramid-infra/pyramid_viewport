@@ -2,6 +2,7 @@ extern crate image;
 
 use image::RgbaImage;
 use pyramid::propnode::*;
+use mesh::*;
 
 use std::path::Path;
 use std::fmt;
@@ -13,29 +14,24 @@ use std::sync::mpsc;
 use std::sync::mpsc::*;
 
 
-#[derive(Debug, PartialEq)]
-pub struct Mesh {
-    pub vertices: Vec<f32>,
-    pub indices: Vec<u32>
-}
-
-pub fn load_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropTranslateErr> {
+pub fn propnode_to_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropTranslateErr> {
     let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
 
     match transform_name.as_str() {
         "static_mesh" => {
-            let arg = try!(arg.as_object());
-            let vertices = match arg.get("vertices") {
-                Some(verts) => try!(verts.as_float_array()),
-                None => return Err(PropTranslateErr::NoSuchField { field: "vertices".to_string() })
-            };
-            let indices = match arg.get("indices") {
-                Some(verts) => try!(verts.as_integer_array()),
-                None => return Err(PropTranslateErr::NoSuchField { field: "indices".to_string() })
-            };
+            let layout_node_array = try!(try!(arg.get_object_field("layout")).as_array());
+            let mut layout = vec![];
+            for p in layout_node_array {
+                let p = try!(p.as_array());
+                layout.push((try!(p[0].as_string()).clone(), *try!(p[1].as_integer()) as usize));
+            }
+            let vertices = try!(try!(arg.get_object_field("vertices")).as_float_array());
+            let indices = try!(try!(arg.get_object_field("indices")).as_integer_array());
+
             return Ok(Mesh {
-                vertices: vertices,
-                indices: indices.iter().map(|x| *x as u32).collect()
+                layout: Layout::new(layout),
+                vertex_data: vertices,
+                element_data: indices.iter().map(|x| *x as u32).collect()
             });
         },
         // "mesh_from_file" => {
@@ -84,7 +80,7 @@ pub fn load_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropTranslat
     }
 }
 
-pub fn load_texture(root_path: &Path, node: &PropNode) -> Result<RgbaImage, PropTranslateErr> {
+pub fn propnode_to_texture(root_path: &Path, node: &PropNode) -> Result<RgbaImage, PropTranslateErr> {
     let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
 
     match transform_name.as_str() {

@@ -1,7 +1,7 @@
 extern crate gl;
 extern crate image;
 
-use resources::*;
+use mesh::*;
 use image::GenericImage;
 use libc::types::common::c95::c_void;
 use image::RgbaImage;
@@ -35,29 +35,30 @@ pub fn create_mesh(shader_program: GLuint, mesh: &Mesh) -> GLMesh {
         gl::GenBuffers(1, &mut vbo);
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
         gl::BufferData(gl::ARRAY_BUFFER,
-            (mesh.vertices.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-            mem::transmute(&mesh.vertices[0]),
+            (mesh.vertex_data.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+            mem::transmute(&mesh.vertex_data[0]),
             gl::STATIC_DRAW);
 
         // Element buffer
         gl::GenBuffers(1, &mut ebo);
         gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
         gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
-            (mesh.indices.len() * mem::size_of::<GLuint>()) as GLsizeiptr,
-            mem::transmute(&mesh.indices[0]),
+            (mesh.element_data.len() * mem::size_of::<GLuint>()) as GLsizeiptr,
+            mem::transmute(&mesh.element_data[0]),
             gl::STATIC_DRAW);
 
         // Specify the layout of the vertex data
-        let pos_attr = gl::GetAttribLocation(shader_program, CString::new("position").unwrap().as_ptr()) as GLuint;
-        let texcord_attr = gl::GetAttribLocation(shader_program, CString::new("texcoord").unwrap().as_ptr()) as GLuint;
-        gl::EnableVertexAttribArray(pos_attr);
-        gl::EnableVertexAttribArray(texcord_attr);
-        gl::VertexAttribPointer(pos_attr, 3, gl::FLOAT, gl::FALSE as GLboolean, 5 * mem::size_of::<GLfloat>() as GLint, ptr::null());
-        gl::VertexAttribPointer(texcord_attr, 2, gl::FLOAT, gl::FALSE as GLboolean, 5 * mem::size_of::<GLfloat>() as GLint, (3 * mem::size_of::<GLfloat>()) as *const GLvoid);
+        for attr in &mesh.layout.attributes {
+            let gl_attr = gl::GetAttribLocation(shader_program, CString::new(attr.name.clone()).unwrap().as_ptr()) as GLuint;
+            gl::EnableVertexAttribArray(gl_attr);
+            let stride = (mesh.layout.stride * mem::size_of::<GLfloat>()) as GLint;
+            let offset = (attr.offset * mem::size_of::<GLfloat>()) as *const GLvoid;
+            gl::VertexAttribPointer(gl_attr, attr.size as GLint, gl::FLOAT, gl::FALSE as GLboolean, stride, offset);
+        }
     }
     return GLMesh {
         vao: vao,
-        nindices: mesh.indices.len() as GLint
+        nindices: mesh.element_data.len() as GLint
     };
 }
 

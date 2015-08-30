@@ -16,3 +16,6 @@ path = "../pyramid"
 
 [dependencies.ppromise]
 path = "../ppromise"
+
+[dependencies.mesh]
+path = "../mesh"
