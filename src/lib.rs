@@ -5,9 +5,9 @@ extern crate libc;
 extern crate image;
 extern crate cgmath;
 extern crate time;
+#[macro_use]
 extern crate pyramid;
 extern crate glutin;
-extern crate ppromise;
 extern crate mesh;
 
 mod renderer;
@@ -15,6 +15,7 @@ mod resources;
 mod matrix;
 mod gl_resources;
 mod fps_counter;
+mod propnode_to_resource;
 
 use pyramid::interface::*;
 use pyramid::propnode::*;
@@ -24,10 +25,10 @@ use pyramid::*;
 use mesh::*;
 
 use renderer::*;
-use ppromise::*;
 use gl_resources::*;
 use resources::*;
 use fps_counter::*;
+use propnode_to_resource::*;
 
 use image::RgbaImage;
 use std::collections::HashMap;
@@ -38,20 +39,18 @@ use gl::types::*;
 use std::str;
 use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 static SHADER_BASIC_VS: &'static [u8] = include_bytes!("../shaders/basic_vs.glsl");
 static SHADER_BASIC_FS: &'static [u8] = include_bytes!("../shaders/basic_fs.glsl");
+
 
 pub struct ViewportSubSystem {
     root_path: PathBuf,
     window: glutin::Window,
     renderer: Renderer,
-    meshes_to_resolve: Vec<AsyncPromise<Mesh>>,
-    textures_to_resolve: Vec<AsyncPromise<RgbaImage>>,
-    meshes: HashMap<PropNode, Promise<GLMesh>>,
-    textures: HashMap<PropNode, Promise<GLTexture>>,
-    shaders: HashMap<String, GLuint>,
-    default_texture: PropNode,
+    resources: Resources,
+    default_textures: PropNode,
     fps_counter: FpsCounter
 }
 
@@ -67,23 +66,20 @@ impl ViewportSubSystem {
         }
 
         let mut viewport = ViewportSubSystem {
-            root_path: root_path,
+            root_path: root_path.clone(),
             window: window,
             renderer: Renderer::new(),
-            meshes_to_resolve: vec![],
-            textures_to_resolve: vec![],
-            meshes: HashMap::new(),
-            textures: HashMap::new(),
-            shaders: HashMap::new(),
-            default_texture: propnode_parser::parse("static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 }").unwrap(),
+            resources: Resources::new(root_path.clone()),
+            default_textures: propnode_parser::parse("{ diffuse: static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 } }").unwrap(),
             fps_counter: FpsCounter::new()
         };
 
-        let vs = compile_shader(str::from_utf8(SHADER_BASIC_VS).unwrap(), gl::VERTEX_SHADER);
-        let fs = compile_shader(str::from_utf8(SHADER_BASIC_FS).unwrap(), gl::FRAGMENT_SHADER);
-        let shader_program = link_program(vs, fs);
+        let shader_program = GLShader::new(&ShaderSource {
+            vertex_src: str::from_utf8(SHADER_BASIC_VS).unwrap().to_string(),
+            fragment_src: str::from_utf8(SHADER_BASIC_FS).unwrap().to_string()
+        });
 
-        viewport.shaders.insert("basic".to_string(), shader_program);
+        viewport.resources.gl_shaders.borrow_mut().set(&PropNode::String("basic".to_string()), Rc::new(shader_program));
 
         viewport
     }
@@ -92,61 +88,45 @@ impl ViewportSubSystem {
 impl ViewportSubSystem {
 
     fn renderer_add(&mut self, system: &ISystem, entity_id: &EntityId) {
-        let shader = *self.shaders.get("basic").unwrap();
-        let mesh_pn: PropNode = match system.get_property_value(entity_id, "mesh") {
+        let shader_key: PropNode = match system.get_property_value(entity_id, "shader") {
+            Ok(shader) => shader,
+            Err(err) => PropNode::String("basic".to_string())
+        };
+        let mesh_key: PropNode = match system.get_property_value(entity_id, "mesh") {
             Ok(mesh) => mesh,
             Err(err) => return ()
         };
-        let mesh = match self.meshes.get(&mesh_pn) {
-            Some(mesh) => Some(mesh.clone()),
-            None => None
-        };
-        let mesh = match mesh {
-            Some(mesh) => mesh,
-            None => {
-                let mesh_pn2 = mesh_pn.clone();
-                let shader = shader.clone();
-                let root_path = self.root_path.clone();
-                let mesh_async_promise = AsyncPromise::new(move || propnode_to_mesh(&root_path, &mesh_pn2).unwrap());
-                let gl_mesh_promise = mesh_async_promise.promise.then(move |mesh| gl_resources::create_mesh(shader, mesh));
-                self.meshes_to_resolve.push(mesh_async_promise);
-                self.meshes.insert(mesh_pn, gl_mesh_promise.clone());
-                gl_mesh_promise
-            }
-        };
-        let texture_pn: PropNode = match system.get_property_value(entity_id, "diffuse") {
-            Ok(pn) => pn,
-            Err(err) => self.default_texture.clone()
-        };
-        let texture = match self.textures.get(&texture_pn) {
-            Some(texture) => Some(texture.clone()),
-            None => None
-        };
-        let texture = match texture {
-            Some(texture) => texture,
-            None => {
-                let texture_pn2 = texture_pn.clone();
-                let root_path = self.root_path.clone();
-                let texture_async_promise = AsyncPromise::new(move || propnode_to_texture(&root_path, &texture_pn2).unwrap());
-                let gl_texture_promise = texture_async_promise.promise.then(move |texture| gl_resources::create_texture(texture.clone()));
-                self.textures_to_resolve.push(texture_async_promise);
-                self.textures.insert(texture_pn, gl_texture_promise.clone());
-                gl_texture_promise
-            }
-        };
-        let node = {
-            RenderNode {
-                id: *entity_id,
-                shader: shader,
-                mesh: mesh,
-                texture: texture,
-                transform: match system.get_property_value(entity_id, "transform") {
-                    Ok(trans) => matrix::from_prop_node(&trans).unwrap(),
-                    Err(err) => Matrix4::identity()
+        let texture_keys: PropNode = match system.get_property_value(entity_id, "textures") {
+            Ok(textures) => textures,
+            Err(err) => {
+                match system.get_property_value(entity_id, "diffuse") {
+                    Ok(diffuse) => PropNode::Object(hashmap![
+                        "diffuse".to_string() => diffuse
+                    ]),
+                    Err(_) => return()
                 }
             }
         };
-        self.renderer.add_node(node);
+
+        let gl_shader = self.resources.gl_shaders.borrow_mut().get(&shader_key);
+        let gl_vertex_array = self.resources.gl_vertex_arrays.borrow_mut().get(&PropNode::Array(vec![shader_key, mesh_key]));
+        let mut gl_textures = vec![];
+        for (name, texture_key) in texture_keys.as_object().unwrap() {
+            let gl_texture = self.resources.gl_textures.borrow_mut().get(texture_key);
+            gl_textures.push((name.clone(), gl_texture));
+        }
+
+        let render_node = RenderNode {
+            id: entity_id.clone(),
+            shader: gl_shader,
+            vertex_array: gl_vertex_array,
+            textures: gl_textures,
+            transform: match system.get_property_value(&entity_id, "transform") {
+                Ok(trans) => matrix::from_prop_node(&trans).unwrap(),
+                Err(err) => Matrix4::identity()
+            }
+        };
+        self.renderer.add_node(render_node);
     }
     fn renderer_remove(&mut self, entity_id: &EntityId) {
         self.renderer.remove_node(entity_id);
@@ -188,12 +168,6 @@ impl ISubSystem for ViewportSubSystem {
     fn update(&mut self, system: &mut ISystem, delta_time: time::Duration) {
         self.fps_counter.add_frame(delta_time);
         self.window.set_title(format!("pyramid {:.0} fps", self.fps_counter.fps()).as_str());
-
-        let meshes_to_resolve = mem::replace(&mut self.meshes_to_resolve, Vec::new());
-        self.meshes_to_resolve = meshes_to_resolve.into_iter().filter(|m| !m.try_resolve()).collect();
-        let textures_to_resolve = mem::replace(&mut self.textures_to_resolve, Vec::new());
-        self.textures_to_resolve = textures_to_resolve.into_iter().filter(|m| !m.try_resolve()).collect();
-
 
         unsafe {
             gl::ClearColor(0.3, 0.3, 0.3, 1.0);

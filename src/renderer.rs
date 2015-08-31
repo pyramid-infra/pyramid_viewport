@@ -5,7 +5,6 @@ extern crate image;
 use pyramid::document::*;
 use resources::*;
 use gl_resources::*;
-use ppromise::*;
 
 use gl::types::*;
 use std::fs::File;
@@ -14,6 +13,7 @@ use cgmath::*;
 use std::ptr;
 use std::ffi::CString;
 use std::mem;
+use std::rc::Rc;
 
 
 
@@ -22,12 +22,13 @@ pub struct Renderer {
     pub camera: Matrix4<f32>
 }
 
+#[derive(Clone)]
 pub struct RenderNode {
     pub id: u64,
-    pub shader: GLuint,
-    pub mesh: Promise<GLMesh>,
+    pub shader: Rc<GLShader>,
+    pub vertex_array: Rc<GLVertexArray>,
     pub transform: Matrix4<f32>,
-    pub texture: Promise<GLTexture>
+    pub textures: Vec<(String, Rc<GLTexture>)>
 }
 
 
@@ -43,29 +44,30 @@ impl Renderer {
             //gl::Disable(gl::CULL_FACE);
             gl::Enable(gl::DEPTH_TEST);
             for node in &self.nodes {
-                gl::UseProgram(node.shader);
-                gl::BindFragDataLocation(node.shader, 0,
+                gl::UseProgram(node.shader.shader);
+                gl::BindFragDataLocation(node.shader.shader, 0,
                                          CString::new("out_color").unwrap().as_ptr());
 
-                if let &Some(ref mesh) = &*node.mesh.value() {
-                    gl::BindVertexArray(mesh.vao);
-                }
+                gl::BindVertexArray(node.vertex_array.vao);
 
-                let uniTrans = gl::GetUniformLocation(node.shader, CString::new("trans").unwrap().as_ptr());
+                let trans_loc = gl::GetUniformLocation(node.shader.shader, CString::new("trans").unwrap().as_ptr());
 
                 let transform = self.camera * node.transform;
                 let t: [f32; 16] = mem::transmute(transform);
-                gl::UniformMatrix4fv(uniTrans, 1, gl::FALSE, t.as_ptr());
+                gl::UniformMatrix4fv(trans_loc, 1, gl::FALSE, t.as_ptr());
 
-                if let &Some(ref texture) = &*node.texture.value() {
+                let mut texi = 0;
+                for &(ref name, ref texture) in &node.textures {
+                    gl::ActiveTexture(gl::TEXTURE0 + texi);
                     gl::BindTexture(gl::TEXTURE_2D, texture.texture);
+                    let tex_loc = gl::GetUniformLocation(node.shader.shader, CString::new(name.to_string()).unwrap().as_ptr());
+                    gl::Uniform1i(tex_loc, texi as GLint);
+                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as GLint);
+                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as GLint);
+                    texi += 1;
                 }
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as GLint);
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as GLint);
 
-                if let &Some(ref mesh) = &*node.mesh.value() {
-                    gl::DrawElements(gl::TRIANGLES, mesh.nindices, gl::UNSIGNED_INT, ptr::null());
-                }
+                gl::DrawElements(gl::TRIANGLES, node.vertex_array.mesh.nindices, gl::UNSIGNED_INT, ptr::null());
             }
         };
     }
