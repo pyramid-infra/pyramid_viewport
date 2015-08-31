@@ -49,6 +49,7 @@ impl Renderer {
                                          CString::new("out_color").unwrap().as_ptr());
 
                 gl::BindVertexArray(node.vertex_array.vao);
+                gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, node.vertex_array.mesh.ebo);
 
                 let trans_loc = gl::GetUniformLocation(node.shader.shader, CString::new("trans").unwrap().as_ptr());
 

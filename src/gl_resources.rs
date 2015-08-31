@@ -69,7 +69,6 @@ impl GLVertexArray {
             gl::BindVertexArray(vao);
 
             gl::BindBuffer(gl::ARRAY_BUFFER, mesh.vbo);
-            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, mesh.ebo);
 
             // Specify the layout of the vertex data
             for attr in &mesh.layout.attributes {
