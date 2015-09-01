@@ -95,15 +95,24 @@ pub struct GLTexture {
     pub texture: GLuint
 }
 
+
 impl GLTexture {
-    pub fn new(image: RgbaImage) -> GLTexture {
+    pub fn new(image: Texture) -> GLTexture {
         println!("create_texture START");
         let mut tex = 0;
         unsafe {
             gl::GenTextures(1, &mut tex);
             gl::BindTexture(gl::TEXTURE_2D, tex);
-            gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as GLint, image.width() as GLint, image.height() as GLint, 0,
-                gl::RGBA, gl::UNSIGNED_BYTE, mem::transmute(&image.into_raw()[0]));
+            match image {
+                Texture::Image(image) => {
+                    gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as GLint, image.width() as GLint, image.height() as GLint, 0,
+                        gl::RGBA, gl::UNSIGNED_BYTE, mem::transmute(&image.into_raw()[0]));
+                },
+                Texture::Floats { width, height, data } => {
+                    gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RED as GLint, width as GLint, height as GLint, 0,
+                        gl::RED, gl::FLOAT, mem::transmute(&data[0]));
+                }
+            }
         }
         println!("create_texture END");
         return GLTexture {

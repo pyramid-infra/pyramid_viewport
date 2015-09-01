@@ -5,6 +5,7 @@ extern crate libc;
 extern crate image;
 extern crate cgmath;
 extern crate time;
+extern crate byteorder;
 #[macro_use]
 extern crate pyramid;
 extern crate glutin;

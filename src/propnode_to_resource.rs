@@ -12,11 +12,23 @@ use std::io::prelude::*;
 use std::thread;
 use std::sync::mpsc;
 use std::sync::mpsc::*;
+use std::io::Cursor;
+use byteorder::{LittleEndian, ReadBytesExt};
 
 #[derive(Debug)]
 pub struct ShaderSource {
     pub vertex_src: String,
     pub fragment_src: String,
+}
+
+#[derive(Clone)]
+pub enum Texture {
+    Image(RgbaImage),
+    Floats {
+        width: u32,
+        height: u32,
+        data: Vec<f32>
+    }
 }
 
 fn propnode_to_layout(layout_node_array: &Vec<PropNode>) -> Result<Layout, PropTranslateErr> {
@@ -102,7 +114,7 @@ pub fn propnode_to_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropT
     }
 }
 
-pub fn propnode_to_texture(root_path: &Path, node: &PropNode) -> Result<RgbaImage, PropTranslateErr> {
+pub fn propnode_to_texture(root_path: &Path, node: &PropNode) -> Result<Texture, PropTranslateErr> {
     let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
 
     match transform_name.as_str() {
@@ -125,7 +137,7 @@ pub fn propnode_to_texture(root_path: &Path, node: &PropNode) -> Result<RgbaImag
                 return Err(PropTranslateErr::Generic(format!("Expected {} pixels, found {}", width * height * 4, pixel_data.len())));
             }
             return match RgbaImage::from_raw(width, height, pixel_data) {
-                Some(image) => Ok(image),
+                Some(image) => Ok(Texture::Image(image)),
                 None => Err(PropTranslateErr::Generic("Failed to create image in static_texture".to_string()))
             }
         },
@@ -134,12 +146,29 @@ pub fn propnode_to_texture(root_path: &Path, node: &PropNode) -> Result<RgbaImag
             let path_buff = root_path.join(Path::new(filename));
             let path = path_buff.as_path();
             println!("Loading image {:?}", path);
-            let img = image::open(&path);
-            println!("Image loaded!");
-            return match img {
-                Ok(img) => Ok(img.to_rgba()),
-                Err(err) => Err(PropTranslateErr::Generic(format!("Failed to load image: {}: {:?}", filename, err)))
-            };
+            if path.extension().unwrap().to_str().unwrap() == "dhm" {
+                let mut f = File::open(path).unwrap();
+                let mut data = vec![];
+                f.read_to_end(&mut data);
+                let mut rdr = Cursor::new(data);
+                let width = rdr.read_i32::<LittleEndian>().unwrap() as u32;
+                let height = rdr.read_i32::<LittleEndian>().unwrap() as u32;
+                println!("SIZE {}, {}", width, height);
+                let mut data = vec![];
+                for y in 0..height {
+                    for x in 0..width {
+                        data.push(rdr.read_f32::<LittleEndian>().unwrap());
+                    }
+                }
+                return Ok(Texture::Floats { width: width, height: height, data: data })
+            } else {
+                let img = image::open(&path);
+                println!("Image loaded!");
+                return match img {
+                    Ok(img) => Ok(Texture::Image(img.to_rgba())),
+                    Err(err) => Err(PropTranslateErr::Generic(format!("Failed to load image: {}: {:?}", filename, err)))
+                };
+            }
         },
         _ => Err(PropTranslateErr::UnrecognizedPropTransform(transform_name.clone()))
     }
