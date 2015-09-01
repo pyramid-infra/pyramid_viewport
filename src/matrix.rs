@@ -37,7 +37,7 @@ pub fn from_prop_node(node: &PropNode) -> Result<Matrix4<f32>, PropTranslateErr>
             let v = try!(to_vec3(arg));
             let mat = Matrix4::new(v.x,  zero(), zero(), zero(),
                      zero(), v.y,  zero(), zero(),
-                     zero(), zero(), v.x,  zero(),
+                     zero(), zero(), v.z,  zero(),
                      zero(), zero(), zero(),  one());
             return Ok(mat);
         },
