@@ -1,8 +1,10 @@
+extern crate gl;
 
 use pyramid::propnode::*;
 use gl_resources::*;
 use propnode_to_resource::*;
 use mesh::*;
+use gl::types::*;
 
 use std::path::PathBuf;
 use std::collections::HashMap;
@@ -40,7 +42,7 @@ impl<T> ResourceContainer<T> {
 
 
 pub struct Resources {
-    pub gl_shaders: Rc<RefCell<ResourceContainer<GLShader>>>,
+    pub gl_shader_programs: Rc<RefCell<ResourceContainer<GLShaderProgram>>>,
 
     pub gl_meshes: Rc<RefCell<ResourceContainer<GLMesh>>>,
     pub gl_vertex_arrays: Rc<RefCell<ResourceContainer<GLVertexArray>>>,
@@ -57,17 +59,17 @@ impl Resources {
             GLMesh::new(&*mesh)
         })));
         let root_path2 = root_path.clone();
-        let gl_shaders = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
+        let gl_shader_programs = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
             let shader = propnode_to_shader(&root_path2, key).unwrap();
-            GLShader::new(&shader)
+            GLShaderProgram::new(&GLShader::new(&shader.vertex_src, gl::VERTEX_SHADER), &GLShader::new(&shader.fragment_src, gl::FRAGMENT_SHADER))
         })));
-        let gl_shaders2 = gl_shaders.clone();
+        let gl_shader_programs2 = gl_shader_programs.clone();
         let gl_meshes2 = gl_meshes.clone();
         let gl_vertex_arrays = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
             let arr = key.as_array().unwrap();
             let shader_key = arr[0].clone();
             let mesh_key = arr[1].clone();
-            let gl_shader = gl_shaders2.borrow_mut().get(&shader_key);
+            let gl_shader = gl_shader_programs2.borrow_mut().get(&shader_key);
             let gl_mesh = gl_meshes2.borrow_mut().get(&mesh_key);
             GLVertexArray::new(&gl_shader, &gl_mesh)
         })));
@@ -78,7 +80,7 @@ impl Resources {
         })));
 
         Resources {
-            gl_shaders: gl_shaders,
+            gl_shader_programs: gl_shader_programs,
             gl_meshes: gl_meshes,
             gl_vertex_arrays: gl_vertex_arrays,
             gl_textures: gl_textures,

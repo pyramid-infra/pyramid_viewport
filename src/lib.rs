@@ -74,12 +74,11 @@ impl ViewportSubSystem {
             fps_counter: FpsCounter::new()
         };
 
-        let shader_program = GLShader::new(&ShaderSource {
-            vertex_src: str::from_utf8(SHADER_BASIC_VS).unwrap().to_string(),
-            fragment_src: str::from_utf8(SHADER_BASIC_FS).unwrap().to_string()
-        });
+        let shader_program = GLShaderProgram::new(
+            &GLShader::new(str::from_utf8(SHADER_BASIC_VS).unwrap(), gl::VERTEX_SHADER),
+            &GLShader::new(str::from_utf8(SHADER_BASIC_FS).unwrap(), gl::FRAGMENT_SHADER));
 
-        viewport.resources.gl_shaders.borrow_mut().set(&PropNode::String("basic".to_string()), Rc::new(shader_program));
+        viewport.resources.gl_shader_programs.borrow_mut().set(&PropNode::String("basic".to_string()), Rc::new(shader_program));
 
         viewport
     }
@@ -108,7 +107,7 @@ impl ViewportSubSystem {
             }
         };
 
-        let gl_shader = self.resources.gl_shaders.borrow_mut().get(&shader_key);
+        let gl_shader = self.resources.gl_shader_programs.borrow_mut().get(&shader_key);
         let gl_vertex_array = self.resources.gl_vertex_arrays.borrow_mut().get(&PropNode::Array(vec![shader_key, mesh_key]));
         let mut gl_textures = vec![];
         for (name, texture_key) in texture_keys.as_object().unwrap() {

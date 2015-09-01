@@ -25,7 +25,7 @@ pub struct Renderer {
 #[derive(Clone)]
 pub struct RenderNode {
     pub id: u64,
-    pub shader: Rc<GLShader>,
+    pub shader: Rc<GLShaderProgram>,
     pub vertex_array: Rc<GLVertexArray>,
     pub transform: Matrix4<f32>,
     pub textures: Vec<(String, Rc<GLTexture>)>
@@ -44,14 +44,14 @@ impl Renderer {
             //gl::Disable(gl::CULL_FACE);
             gl::Enable(gl::DEPTH_TEST);
             for node in &self.nodes {
-                gl::UseProgram(node.shader.shader);
-                gl::BindFragDataLocation(node.shader.shader, 0,
+                gl::UseProgram(node.shader.program);
+                gl::BindFragDataLocation(node.shader.program, 0,
                                          CString::new("out_color").unwrap().as_ptr());
 
                 gl::BindVertexArray(node.vertex_array.vao);
                 gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, node.vertex_array.mesh.ebo);
 
-                let trans_loc = gl::GetUniformLocation(node.shader.shader, CString::new("trans").unwrap().as_ptr());
+                let trans_loc = gl::GetUniformLocation(node.shader.program, CString::new("trans").unwrap().as_ptr());
 
                 let transform = self.camera * node.transform;
                 let t: [f32; 16] = mem::transmute(transform);
@@ -61,7 +61,7 @@ impl Renderer {
                 for &(ref name, ref texture) in &node.textures {
                     gl::ActiveTexture(gl::TEXTURE0 + texi);
                     gl::BindTexture(gl::TEXTURE_2D, texture.texture);
-                    let tex_loc = gl::GetUniformLocation(node.shader.shader, CString::new(name.to_string()).unwrap().as_ptr());
+                    let tex_loc = gl::GetUniformLocation(node.shader.program, CString::new(name.to_string()).unwrap().as_ptr());
                     gl::Uniform1i(tex_loc, texi as GLint);
                     gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as GLint);
                     gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as GLint);
