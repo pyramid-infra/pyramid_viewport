@@ -41,14 +41,14 @@ fn pon_to_layout(layout_node_array: &Vec<Pon>) -> Result<Layout, PropTranslateEr
 }
 
 pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PropTranslateErr> {
-    let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
+    let &TypedPon { type_name: ref type_name, ref data } = try!(node.as_transform());
 
-    match transform_name.as_str() {
+    match type_name.as_str() {
         "static_mesh" => {
-            let layout_node_array = try!(try!(arg.get_object_field("layout")).as_array());
+            let layout_node_array = try!(try!(data.get_object_field("layout")).as_array());
             let layout = try!(pon_to_layout(layout_node_array));
-            let vertices = try!(try!(arg.get_object_field("vertices")).as_float_array());
-            let indices = try!(try!(arg.get_object_field("indices")).as_integer_array());
+            let vertices = try!(try!(data.get_object_field("vertices")).as_float_array());
+            let indices = try!(try!(data.get_object_field("indices")).as_integer_array());
 
             return Ok(Mesh {
                 layout: layout,
@@ -57,14 +57,14 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PropTranslateEr
             });
         },
         "grid_mesh" => {
-            let obj_arg = try!(arg.as_object());
+            let obj_arg = try!(data.as_object());
             let mut grid = Grid::new();
             grid.layout = match obj_arg.get("layout") {
                 Some(layout_node) => try!(pon_to_layout(try!(layout_node.as_array()))),
                 None => Layout::position_texcoord_normal()
             };
-            grid.n_vertices_width = *try!(try!(arg.get_object_field("n_vertices_width")).as_integer()) as u32;
-            grid.n_vertices_height = *try!(try!(arg.get_object_field("n_vertices_height")).as_integer()) as u32;
+            grid.n_vertices_width = *try!(try!(data.get_object_field("n_vertices_width")).as_integer()) as u32;
+            grid.n_vertices_height = *try!(try!(data.get_object_field("n_vertices_height")).as_integer()) as u32;
 
             return Ok(grid.into());
         },
@@ -110,26 +110,26 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PropTranslateEr
         //         Err(err) => Err(PropTranslateErr::Generic(format!("Failed to load mesh: {}: {:?}", config.0, err)))
         //     }
         // },
-        _ => Err(PropTranslateErr::UnrecognizedPropTransform(transform_name.clone()))
+        _ => Err(PropTranslateErr::UnrecognizedTypedPon(type_name.clone()))
     }
 }
 
 pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PropTranslateErr> {
-    let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
+    let &TypedPon { ref type_name, ref data } = try!(node.as_transform());
 
-    match transform_name.as_str() {
+    match type_name.as_str() {
         "static_texture" => {
-            let arg = try!(arg.as_object());
-            let pixel_data = match arg.get("pixels") {
+            let data = try!(data.as_object());
+            let pixel_data = match data.get("pixels") {
                 Some(verts) => try!(verts.as_integer_array()),
                 None => return Err(PropTranslateErr::NoSuchField { field: "pixels".to_string() })
             };
             let pixel_data: Vec<u8> = pixel_data.iter().map(|x| *x as u8).collect();
-            let width = match arg.get("width") {
+            let width = match data.get("width") {
                 Some(verts) => *try!(verts.as_integer()) as u32,
                 None => return Err(PropTranslateErr::NoSuchField { field: "width".to_string() })
             };
-            let height = match arg.get("height") {
+            let height = match data.get("height") {
                 Some(verts) => *try!(verts.as_integer()) as u32,
                 None => return Err(PropTranslateErr::NoSuchField { field: "height".to_string() })
             };
@@ -142,7 +142,7 @@ pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PropTrans
             }
         },
         "texture_from_file" => {
-            let filename = try!(arg.as_string());
+            let filename = try!(data.as_string());
             let path_buff = root_path.join(Path::new(filename));
             let path = path_buff.as_path();
             println!("Loading image {:?}", path);
@@ -170,29 +170,29 @@ pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PropTrans
                 };
             }
         },
-        _ => Err(PropTranslateErr::UnrecognizedPropTransform(transform_name.clone()))
+        _ => Err(PropTranslateErr::UnrecognizedTypedPon(type_name.clone()))
     }
 }
 
 pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PropTranslateErr> {
-    let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
+    let &TypedPon { ref type_name, ref data } = try!(node.as_transform());
 
-    match transform_name.as_str() {
+    match type_name.as_str() {
         "shader_program" => {
-            let vertex = try!(try!(arg.get_object_field("vertex")).as_transform());
-            let fragment = try!(try!(arg.get_object_field("fragment")).as_transform());
+            let vertex = try!(try!(data.get_object_field("vertex")).as_transform());
+            let fragment = try!(try!(data.get_object_field("fragment")).as_transform());
 
-            let vertex_string_arg = try!(vertex.arg.as_string()).clone();
-            let vertex_src = match vertex.name.as_str() {
+            let vertex_string_arg = try!(vertex.data.as_string()).clone();
+            let vertex_src = match vertex.type_name.as_str() {
                 "shader_from_file" => string_from_file(&root_path.join(Path::new(&vertex_string_arg))),
                 "static_shader" => vertex_string_arg,
-                _ => return Err(PropTranslateErr::UnrecognizedPropTransform(vertex.name.to_string()))
+                _ => return Err(PropTranslateErr::UnrecognizedTypedPon(vertex.type_name.to_string()))
             };
-            let fragment_string_arg = try!(fragment.arg.as_string()).clone();
-            let fragment_src = match fragment.name.as_str() {
+            let fragment_string_arg = try!(fragment.data.as_string()).clone();
+            let fragment_src = match fragment.type_name.as_str() {
                 "shader_from_file" => string_from_file(&root_path.join(Path::new(&fragment_string_arg))),
                 "static_shader" => fragment_string_arg,
-                _ => return Err(PropTranslateErr::UnrecognizedPropTransform(fragment.name.to_string()))
+                _ => return Err(PropTranslateErr::UnrecognizedTypedPon(fragment.type_name.to_string()))
             };
 
             return Ok(ShaderSource {
@@ -200,7 +200,7 @@ pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PropT
                 fragment_src: fragment_src
             })
         },
-        _ => Err(PropTranslateErr::UnrecognizedPropTransform(transform_name.clone()))
+        _ => Err(PropTranslateErr::UnrecognizedTypedPon(type_name.clone()))
     }
 }
 
