@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use pyramid::pon::*;
 use cgmath::*;
 
-pub fn from_prop_node(node: &Pon) -> Result<Matrix4<f32>, PropTranslateErr> {
+pub fn from_prop_node(node: &Pon) -> Result<Matrix4<f32>, PonTranslateErr> {
     let &TypedPon { ref type_name, ref data } = try!(node.as_transform());
     match type_name.as_str() {
         "matrix" => {
@@ -45,11 +45,11 @@ pub fn from_prop_node(node: &Pon) -> Result<Matrix4<f32>, PropTranslateErr> {
             let data = try!(data.as_object());
             let eye = match data.get("eye") {
                 Some(v) => try!(to_vec3(try!(v.as_object()))),
-                None => return Err(PropTranslateErr::NoSuchField { field: "eye".to_string() })
+                None => return Err(PonTranslateErr::NoSuchField { field: "eye".to_string() })
             };
             let center = match data.get("center") {
                 Some(v) => try!(to_vec3(try!(v.as_object()))),
-                None => return Err(PropTranslateErr::NoSuchField { field: "center".to_string() })
+                None => return Err(PonTranslateErr::NoSuchField { field: "center".to_string() })
             };
             let up = match data.get("up") {
                 Some(v) => try!(to_vec3(try!(v.as_object()))),
@@ -86,11 +86,11 @@ pub fn from_prop_node(node: &Pon) -> Result<Matrix4<f32>, PropTranslateErr> {
             }
             return Ok(a);
         },
-        _ => Err(PropTranslateErr::UnrecognizedTypedPon(type_name.to_string()))
+        _ => Err(PonTranslateErr::UnrecognizedTypedPon(type_name.to_string()))
     }
 }
 
-fn to_vec3(map: &HashMap<String, Pon>) -> Result<Vector3<f32>, PropTranslateErr> {
+fn to_vec3(map: &HashMap<String, Pon>) -> Result<Vector3<f32>, PonTranslateErr> {
     let x: f32 = match map.get("x") { Some(&ref v) => *try!(v.as_float()), _ => 0.0 };
     let y: f32 = match map.get("y") { Some(&ref v) => *try!(v.as_float()), _ => 0.0 };
     let z: f32 = match map.get("z") { Some(&ref v) => *try!(v.as_float()), _ => 0.0 };

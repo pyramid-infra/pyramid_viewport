@@ -31,7 +31,7 @@ pub enum Texture {
     }
 }
 
-fn pon_to_layout(layout_node_array: &Vec<Pon>) -> Result<Layout, PropTranslateErr> {
+fn pon_to_layout(layout_node_array: &Vec<Pon>) -> Result<Layout, PonTranslateErr> {
     let mut layout = vec![];
     for p in layout_node_array {
         let p = try!(p.as_array());
@@ -40,7 +40,7 @@ fn pon_to_layout(layout_node_array: &Vec<Pon>) -> Result<Layout, PropTranslateEr
     Ok(Layout::new(layout))
 }
 
-pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PropTranslateErr> {
+pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr> {
     let &TypedPon { type_name: ref type_name, ref data } = try!(node.as_transform());
 
     match type_name.as_str() {
@@ -76,7 +76,7 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PropTranslateEr
         //                 Ok(arg) => {
         //                     (match arg.get("filename") {
         //                         Some(filename) => try!(filename.as_string()).clone(),
-        //                         None => return Err(PropTranslateErr::NoSuchField { field: "filename".to_string() })
+        //                         None => return Err(PonTranslateErr::NoSuchField { field: "filename".to_string() })
         //                     }, match arg.get("mesh_id") {
         //                         Some(mesh_id) => try!(mesh_id.as_string()).clone(),
         //                         None => "polySurface1".to_string()
@@ -107,14 +107,14 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PropTranslateEr
         //             println!("Loaded mesh {}", config.0);
         //             return Ok(mesh);
         //         },
-        //         Err(err) => Err(PropTranslateErr::Generic(format!("Failed to load mesh: {}: {:?}", config.0, err)))
+        //         Err(err) => Err(PonTranslateErr::Generic(format!("Failed to load mesh: {}: {:?}", config.0, err)))
         //     }
         // },
-        _ => Err(PropTranslateErr::UnrecognizedTypedPon(type_name.clone()))
+        _ => Err(PonTranslateErr::UnrecognizedTypedPon(type_name.clone()))
     }
 }
 
-pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PropTranslateErr> {
+pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PonTranslateErr> {
     let &TypedPon { ref type_name, ref data } = try!(node.as_transform());
 
     match type_name.as_str() {
@@ -122,23 +122,23 @@ pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PropTrans
             let data = try!(data.as_object());
             let pixel_data = match data.get("pixels") {
                 Some(verts) => try!(verts.as_integer_array()),
-                None => return Err(PropTranslateErr::NoSuchField { field: "pixels".to_string() })
+                None => return Err(PonTranslateErr::NoSuchField { field: "pixels".to_string() })
             };
             let pixel_data: Vec<u8> = pixel_data.iter().map(|x| *x as u8).collect();
             let width = match data.get("width") {
                 Some(verts) => *try!(verts.as_integer()) as u32,
-                None => return Err(PropTranslateErr::NoSuchField { field: "width".to_string() })
+                None => return Err(PonTranslateErr::NoSuchField { field: "width".to_string() })
             };
             let height = match data.get("height") {
                 Some(verts) => *try!(verts.as_integer()) as u32,
-                None => return Err(PropTranslateErr::NoSuchField { field: "height".to_string() })
+                None => return Err(PonTranslateErr::NoSuchField { field: "height".to_string() })
             };
             if width * height * 4 != pixel_data.len() as u32 {
-                return Err(PropTranslateErr::Generic(format!("Expected {} pixels, found {}", width * height * 4, pixel_data.len())));
+                return Err(PonTranslateErr::Generic(format!("Expected {} pixels, found {}", width * height * 4, pixel_data.len())));
             }
             return match RgbaImage::from_raw(width, height, pixel_data) {
                 Some(image) => Ok(Texture::Image(image)),
-                None => Err(PropTranslateErr::Generic("Failed to create image in static_texture".to_string()))
+                None => Err(PonTranslateErr::Generic("Failed to create image in static_texture".to_string()))
             }
         },
         "texture_from_file" => {
@@ -166,15 +166,15 @@ pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PropTrans
                 println!("Image loaded!");
                 return match img {
                     Ok(img) => Ok(Texture::Image(img.to_rgba())),
-                    Err(err) => Err(PropTranslateErr::Generic(format!("Failed to load image: {}: {:?}", filename, err)))
+                    Err(err) => Err(PonTranslateErr::Generic(format!("Failed to load image: {}: {:?}", filename, err)))
                 };
             }
         },
-        _ => Err(PropTranslateErr::UnrecognizedTypedPon(type_name.clone()))
+        _ => Err(PonTranslateErr::UnrecognizedTypedPon(type_name.clone()))
     }
 }
 
-pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PropTranslateErr> {
+pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PonTranslateErr> {
     let &TypedPon { ref type_name, ref data } = try!(node.as_transform());
 
     match type_name.as_str() {
@@ -186,13 +186,13 @@ pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PropT
             let vertex_src = match vertex.type_name.as_str() {
                 "shader_from_file" => string_from_file(&root_path.join(Path::new(&vertex_string_arg))),
                 "static_shader" => vertex_string_arg,
-                _ => return Err(PropTranslateErr::UnrecognizedTypedPon(vertex.type_name.to_string()))
+                _ => return Err(PonTranslateErr::UnrecognizedTypedPon(vertex.type_name.to_string()))
             };
             let fragment_string_arg = try!(fragment.data.as_string()).clone();
             let fragment_src = match fragment.type_name.as_str() {
                 "shader_from_file" => string_from_file(&root_path.join(Path::new(&fragment_string_arg))),
                 "static_shader" => fragment_string_arg,
-                _ => return Err(PropTranslateErr::UnrecognizedTypedPon(fragment.type_name.to_string()))
+                _ => return Err(PonTranslateErr::UnrecognizedTypedPon(fragment.type_name.to_string()))
             };
 
             return Ok(ShaderSource {
@@ -200,7 +200,7 @@ pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PropT
                 fragment_src: fragment_src
             })
         },
-        _ => Err(PropTranslateErr::UnrecognizedTypedPon(type_name.clone()))
+        _ => Err(PonTranslateErr::UnrecognizedTypedPon(type_name.clone()))
     }
 }
 
