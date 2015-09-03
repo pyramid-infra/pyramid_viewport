@@ -12,7 +12,7 @@ use std::ffi::CString;
 use std::str;
 use std::rc::Rc;
 
-use propnode_to_resource::*;
+use pon_to_resource::*;
 
 
 #[derive(Clone)]

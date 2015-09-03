@@ -2,10 +2,10 @@ extern crate cgmath;
 
 use std::collections::HashMap;
 
-use pyramid::propnode::*;
+use pyramid::pon::*;
 use cgmath::*;
 
-pub fn from_prop_node(node: &PropNode) -> Result<Matrix4<f32>, PropTranslateErr> {
+pub fn from_prop_node(node: &Pon) -> Result<Matrix4<f32>, PropTranslateErr> {
     let &PropTransform { ref name, ref arg } = try!(node.as_transform());
     match name.as_str() {
         "matrix" => {
@@ -90,7 +90,7 @@ pub fn from_prop_node(node: &PropNode) -> Result<Matrix4<f32>, PropTranslateErr>
     }
 }
 
-fn to_vec3(map: &HashMap<String, PropNode>) -> Result<Vector3<f32>, PropTranslateErr> {
+fn to_vec3(map: &HashMap<String, Pon>) -> Result<Vector3<f32>, PropTranslateErr> {
     let x: f32 = match map.get("x") { Some(&ref v) => *try!(v.as_float()), _ => 0.0 };
     let y: f32 = match map.get("y") { Some(&ref v) => *try!(v.as_float()), _ => 0.0 };
     let z: f32 = match map.get("z") { Some(&ref v) => *try!(v.as_float()), _ => 0.0 };

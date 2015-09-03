@@ -1,8 +1,8 @@
 extern crate gl;
 
-use pyramid::propnode::*;
+use pyramid::pon::*;
 use gl_resources::*;
-use propnode_to_resource::*;
+use pon_to_resource::*;
 use mesh::*;
 use gl::types::*;
 
@@ -14,18 +14,18 @@ use image::RgbaImage;
 
 
 pub struct ResourceContainer<T> {
-    construct: Box<Fn(&PropNode) -> T>,
-    resources: HashMap<PropNode, Rc<T>>
+    construct: Box<Fn(&Pon) -> T>,
+    resources: HashMap<Pon, Rc<T>>
 }
 
 impl<T> ResourceContainer<T> {
-    pub fn new<F: Fn(&PropNode) -> T + 'static>(construct: F) -> ResourceContainer<T> {
+    pub fn new<F: Fn(&Pon) -> T + 'static>(construct: F) -> ResourceContainer<T> {
         ResourceContainer {
             construct: Box::new(construct),
             resources: HashMap::new()
         }
     }
-    pub fn get(&mut self, key: &PropNode) -> Rc<T> {
+    pub fn get(&mut self, key: &Pon) -> Rc<T> {
         let value = match self.resources.get(key) {
             Some(value) => return value.clone(),
             None => {}
@@ -34,7 +34,7 @@ impl<T> ResourceContainer<T> {
         self.resources.insert(key.clone(), resource.clone());
         resource
     }
-    pub fn set(&mut self, key: &PropNode, value: Rc<T>) {
+    pub fn set(&mut self, key: &Pon, value: Rc<T>) {
         self.resources.insert(key.clone(), value.clone());
     }
 }
@@ -53,14 +53,14 @@ pub struct Resources {
 impl Resources {
     pub fn new(root_path: PathBuf) -> Resources {
         let root_path2 = root_path.clone();
-        let meshes = Rc::new(RefCell::new(ResourceContainer::new(move |key| propnode_to_mesh(&root_path2, key).unwrap())));
+        let meshes = Rc::new(RefCell::new(ResourceContainer::new(move |key| pon_to_mesh(&root_path2, key).unwrap())));
         let gl_meshes = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
             let mesh = meshes.borrow_mut().get(key).clone();
             GLMesh::new(&*mesh)
         })));
         let root_path2 = root_path.clone();
         let gl_shader_programs = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
-            let shader = propnode_to_shader(&root_path2, key).unwrap();
+            let shader = pon_to_shader(&root_path2, key).unwrap();
             GLShaderProgram::new(&GLShader::new(&shader.vertex_src, gl::VERTEX_SHADER), &GLShader::new(&shader.fragment_src, gl::FRAGMENT_SHADER))
         })));
         let gl_shader_programs2 = gl_shader_programs.clone();
@@ -73,7 +73,7 @@ impl Resources {
             let gl_mesh = gl_meshes2.borrow_mut().get(&mesh_key);
             GLVertexArray::new(&gl_shader, &gl_mesh)
         })));
-        let textures = Rc::new(RefCell::new(ResourceContainer::new(move |key| propnode_to_texture(&root_path, &key).unwrap())));
+        let textures = Rc::new(RefCell::new(ResourceContainer::new(move |key| pon_to_texture(&root_path, &key).unwrap())));
         let gl_textures = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
             let texture = textures.borrow_mut().get(key).clone();
             GLTexture::new((*texture).clone())

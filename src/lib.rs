@@ -16,10 +16,10 @@ mod resources;
 mod matrix;
 mod gl_resources;
 mod fps_counter;
-mod propnode_to_resource;
+mod pon_to_resource;
 
 use pyramid::interface::*;
-use pyramid::propnode::*;
+use pyramid::pon::*;
 use pyramid::document::*;
 use pyramid::*;
 
@@ -29,7 +29,7 @@ use renderer::*;
 use gl_resources::*;
 use resources::*;
 use fps_counter::*;
-use propnode_to_resource::*;
+use pon_to_resource::*;
 
 use image::RgbaImage;
 use std::collections::HashMap;
@@ -51,7 +51,7 @@ pub struct ViewportSubSystem {
     window: glutin::Window,
     renderer: Renderer,
     resources: Resources,
-    default_textures: PropNode,
+    default_textures: Pon,
     fps_counter: FpsCounter
 }
 
@@ -71,7 +71,7 @@ impl ViewportSubSystem {
             window: window,
             renderer: Renderer::new(),
             resources: Resources::new(root_path.clone()),
-            default_textures: propnode_parser::parse("{ diffuse: static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 } }").unwrap(),
+            default_textures: pon_parser::parse("{ diffuse: static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 } }").unwrap(),
             fps_counter: FpsCounter::new()
         };
 
@@ -79,7 +79,7 @@ impl ViewportSubSystem {
             &GLShader::new(str::from_utf8(SHADER_BASIC_VS).unwrap(), gl::VERTEX_SHADER),
             &GLShader::new(str::from_utf8(SHADER_BASIC_FS).unwrap(), gl::FRAGMENT_SHADER));
 
-        viewport.resources.gl_shader_programs.borrow_mut().set(&PropNode::String("basic".to_string()), Rc::new(shader_program));
+        viewport.resources.gl_shader_programs.borrow_mut().set(&Pon::String("basic".to_string()), Rc::new(shader_program));
 
         viewport
     }
@@ -88,19 +88,19 @@ impl ViewportSubSystem {
 impl ViewportSubSystem {
 
     fn renderer_add(&mut self, system: &ISystem, entity_id: &EntityId) {
-        let shader_key: PropNode = match system.get_property_value(entity_id, "shader") {
+        let shader_key: Pon = match system.get_property_value(entity_id, "shader") {
             Ok(shader) => shader,
-            Err(err) => PropNode::String("basic".to_string())
+            Err(err) => Pon::String("basic".to_string())
         };
-        let mesh_key: PropNode = match system.get_property_value(entity_id, "mesh") {
+        let mesh_key: Pon = match system.get_property_value(entity_id, "mesh") {
             Ok(mesh) => mesh,
             Err(err) => return ()
         };
-        let texture_keys: PropNode = match system.get_property_value(entity_id, "textures") {
+        let texture_keys: Pon = match system.get_property_value(entity_id, "textures") {
             Ok(textures) => textures,
             Err(err) => {
                 match system.get_property_value(entity_id, "diffuse") {
-                    Ok(diffuse) => PropNode::Object(hashmap![
+                    Ok(diffuse) => Pon::Object(hashmap![
                         "diffuse".to_string() => diffuse
                     ]),
                     Err(_) => return()
@@ -109,7 +109,7 @@ impl ViewportSubSystem {
         };
 
         let gl_shader = self.resources.gl_shader_programs.borrow_mut().get(&shader_key);
-        let gl_vertex_array = self.resources.gl_vertex_arrays.borrow_mut().get(&PropNode::Array(vec![shader_key, mesh_key]));
+        let gl_vertex_array = self.resources.gl_vertex_arrays.borrow_mut().get(&Pon::Array(vec![shader_key, mesh_key]));
         let mut gl_textures = vec![];
         for (name, texture_key) in texture_keys.as_object().unwrap() {
             let gl_texture = self.resources.gl_textures.borrow_mut().get(texture_key);

@@ -1,7 +1,7 @@
 extern crate image;
 
 use image::RgbaImage;
-use pyramid::propnode::*;
+use pyramid::pon::*;
 use mesh::*;
 
 use std::path::Path;
@@ -31,7 +31,7 @@ pub enum Texture {
     }
 }
 
-fn propnode_to_layout(layout_node_array: &Vec<PropNode>) -> Result<Layout, PropTranslateErr> {
+fn pon_to_layout(layout_node_array: &Vec<Pon>) -> Result<Layout, PropTranslateErr> {
     let mut layout = vec![];
     for p in layout_node_array {
         let p = try!(p.as_array());
@@ -40,13 +40,13 @@ fn propnode_to_layout(layout_node_array: &Vec<PropNode>) -> Result<Layout, PropT
     Ok(Layout::new(layout))
 }
 
-pub fn propnode_to_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropTranslateErr> {
+pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PropTranslateErr> {
     let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
 
     match transform_name.as_str() {
         "static_mesh" => {
             let layout_node_array = try!(try!(arg.get_object_field("layout")).as_array());
-            let layout = try!(propnode_to_layout(layout_node_array));
+            let layout = try!(pon_to_layout(layout_node_array));
             let vertices = try!(try!(arg.get_object_field("vertices")).as_float_array());
             let indices = try!(try!(arg.get_object_field("indices")).as_integer_array());
 
@@ -60,7 +60,7 @@ pub fn propnode_to_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropT
             let obj_arg = try!(arg.as_object());
             let mut grid = Grid::new();
             grid.layout = match obj_arg.get("layout") {
-                Some(layout_node) => try!(propnode_to_layout(try!(layout_node.as_array()))),
+                Some(layout_node) => try!(pon_to_layout(try!(layout_node.as_array()))),
                 None => Layout::position_texcoord_normal()
             };
             grid.n_vertices_width = *try!(try!(arg.get_object_field("n_vertices_width")).as_integer()) as u32;
@@ -114,7 +114,7 @@ pub fn propnode_to_mesh(root_path: &Path, node: &PropNode) -> Result<Mesh, PropT
     }
 }
 
-pub fn propnode_to_texture(root_path: &Path, node: &PropNode) -> Result<Texture, PropTranslateErr> {
+pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PropTranslateErr> {
     let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
 
     match transform_name.as_str() {
@@ -174,7 +174,7 @@ pub fn propnode_to_texture(root_path: &Path, node: &PropNode) -> Result<Texture,
     }
 }
 
-pub fn propnode_to_shader(root_path: &Path, node: &PropNode) -> Result<ShaderSource, PropTranslateErr> {
+pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PropTranslateErr> {
     let &PropTransform { name: ref transform_name, ref arg } = try!(node.as_transform());
 
     match transform_name.as_str() {
