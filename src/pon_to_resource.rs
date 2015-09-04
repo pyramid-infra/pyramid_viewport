@@ -47,8 +47,8 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr
         "static_mesh" => {
             let layout_node_array = try!(try!(data.get_object_field("layout")).as_array());
             let layout = try!(pon_to_layout(layout_node_array));
-            let vertices = try!(try!(data.get_object_field("vertices")).as_float_array());
-            let indices = try!(try!(data.get_object_field("indices")).as_integer_array());
+            let vertices = try!(try!(data.get_object_field("vertices")).as_float_array()).into_owned();
+            let indices = try!(try!(data.get_object_field("indices")).as_integer_array()).into_owned();
 
             return Ok(Mesh {
                 layout: layout,
