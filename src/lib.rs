@@ -110,9 +110,9 @@ impl ViewportSubSystem {
         let gl_shader = self.resources.gl_shader_programs.borrow_mut().get(&shader_key);
         let gl_vertex_array = self.resources.gl_vertex_arrays.borrow_mut().get(&Pon::Array(vec![shader_key, mesh_key]));
         let mut gl_textures = vec![];
-        for (name, texture_key) in texture_keys.as_object().unwrap() {
+        for (name, texture_key) in texture_keys.translate::<&HashMap<String, Pon>>().unwrap() {
             let gl_texture = self.resources.gl_textures.borrow_mut().get(texture_key);
-            gl_textures.push((name.clone(), gl_texture));
+            gl_textures.push((name.to_string(), gl_texture));
         }
 
         let render_node = RenderNode {

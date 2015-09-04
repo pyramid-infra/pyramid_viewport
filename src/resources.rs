@@ -66,7 +66,7 @@ impl Resources {
         let gl_shader_programs2 = gl_shader_programs.clone();
         let gl_meshes2 = gl_meshes.clone();
         let gl_vertex_arrays = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
-            let arr = key.as_array().unwrap();
+            let arr = key.translate::<&Vec<Pon>>().unwrap();
             let shader_key = arr[0].clone();
             let mesh_key = arr[1].clone();
             let gl_shader = gl_shader_programs2.borrow_mut().get(&shader_key);

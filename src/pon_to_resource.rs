@@ -14,6 +14,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::*;
 use std::io::Cursor;
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::borrow::Cow;
 
 #[derive(Debug)]
 pub struct ShaderSource {
@@ -41,14 +42,14 @@ fn pon_to_layout(layout_node_array: &Vec<Pon>) -> Result<Layout, PonTranslateErr
 }
 
 pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr> {
-    let &TypedPon { type_name: ref type_name, ref data } = try!(node.as_transform());
+    let &TypedPon { type_name: ref type_name, ref data } = try!(node.translate());
 
     match type_name.as_str() {
         "static_mesh" => {
-            let layout_node_array = try!(try!(data.get_object_field("layout")).as_array());
+            let layout_node_array = try!(data.field_as::<&Vec<Pon>>("layout"));
             let layout = try!(pon_to_layout(layout_node_array));
-            let vertices = try!(try!(data.get_object_field("vertices")).as_float_array()).into_owned();
-            let indices = try!(try!(data.get_object_field("indices")).as_integer_array()).into_owned();
+            let vertices = try!(data.field_as::<Cow<Vec<f32>>>("vertices")).into_owned();
+            let indices = try!(data.field_as::<Cow<Vec<i64>>>("indices")).into_owned();
 
             return Ok(Mesh {
                 layout: layout,
@@ -57,28 +58,25 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr
             });
         },
         "grid_mesh" => {
-            let obj_arg = try!(data.as_object());
             let mut grid = Grid::new();
-            grid.layout = match obj_arg.get("layout") {
-                Some(layout_node) => try!(pon_to_layout(try!(layout_node.as_array()))),
-                None => Layout::position_texcoord_normal()
-            };
-            grid.n_vertices_width = *try!(try!(data.get_object_field("n_vertices_width")).as_integer()) as u32;
-            grid.n_vertices_height = *try!(try!(data.get_object_field("n_vertices_height")).as_integer()) as u32;
+            let layout_node_array = try!(data.field_as::<&Vec<Pon>>("layout"));
+            grid.layout = try!(pon_to_layout(layout_node_array));
+            grid.n_vertices_width = try!(data.field_as::<i64>("n_vertices_width")) as u32;
+            grid.n_vertices_height = try!(data.field_as::<i64>("n_vertices_height")) as u32;
 
             return Ok(grid.into());
         },
         // "mesh_from_file" => {
-        //     let config = match arg.as_string() {
+        //     let config = match arg.translate::<&str>() {
         //         Ok(filename) => (filename.clone(), "polySurface1".to_string()),
         //         Err(err) => {
         //             match arg.as_object() {
         //                 Ok(arg) => {
         //                     (match arg.get("filename") {
-        //                         Some(filename) => try!(filename.as_string()).clone(),
+        //                         Some(filename) => try!(filename.translate::<&str>()).clone(),
         //                         None => return Err(PonTranslateErr::NoSuchField { field: "filename".to_string() })
         //                     }, match arg.get("mesh_id") {
-        //                         Some(mesh_id) => try!(mesh_id.as_string()).clone(),
+        //                         Some(mesh_id) => try!(mesh_id.translate::<&str>()).clone(),
         //                         None => "polySurface1".to_string()
         //                     })
         //                 },
@@ -115,24 +113,14 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr
 }
 
 pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PonTranslateErr> {
-    let &TypedPon { ref type_name, ref data } = try!(node.as_transform());
+    let &TypedPon { ref type_name, ref data } = try!(node.translate());
 
     match type_name.as_str() {
         "static_texture" => {
-            let data = try!(data.as_object());
-            let pixel_data = match data.get("pixels") {
-                Some(verts) => try!(verts.as_integer_array()),
-                None => return Err(PonTranslateErr::NoSuchField { field: "pixels".to_string() })
-            };
+            let pixel_data = try!(data.field_as::<Cow<Vec<i64>>>("pixels"));
             let pixel_data: Vec<u8> = pixel_data.iter().map(|x| *x as u8).collect();
-            let width = match data.get("width") {
-                Some(verts) => *try!(verts.as_integer()) as u32,
-                None => return Err(PonTranslateErr::NoSuchField { field: "width".to_string() })
-            };
-            let height = match data.get("height") {
-                Some(verts) => *try!(verts.as_integer()) as u32,
-                None => return Err(PonTranslateErr::NoSuchField { field: "height".to_string() })
-            };
+            let width = try!(data.field_as::<i64>("width")) as u32;
+            let height = try!(data.field_as::<i64>("height")) as u32;
             if width * height * 4 != pixel_data.len() as u32 {
                 return Err(PonTranslateErr::Generic(format!("Expected {} pixels, found {}", width * height * 4, pixel_data.len())));
             }
@@ -142,7 +130,7 @@ pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PonTransl
             }
         },
         "texture_from_file" => {
-            let filename = try!(data.as_string());
+            let filename = try!(data.translate::<&str>());
             let path_buff = root_path.join(Path::new(filename));
             let path = path_buff.as_path();
             println!("Loading image {:?}", path);
@@ -175,12 +163,12 @@ pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PonTransl
 }
 
 pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PonTranslateErr> {
-    let &TypedPon { ref type_name, ref data } = try!(node.as_transform());
+    let &TypedPon { ref type_name, ref data } = try!(node.translate());
 
     match type_name.as_str() {
         "shader_program" => {
-            let vertex = try!(try!(data.get_object_field("vertex")).as_transform());
-            let fragment = try!(try!(data.get_object_field("fragment")).as_transform());
+            let vertex = try!(data.field_as::<&TypedPon>("vertex"));
+            let fragment = try!(data.field_as::<&TypedPon>("fragment"));
 
             let vertex_string_arg = try!(vertex.data.translate::<&str>()).to_string();
             let vertex_src = match vertex.type_name.as_str() {
