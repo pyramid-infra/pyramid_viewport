@@ -13,7 +13,6 @@ extern crate mesh;
 
 mod renderer;
 mod resources;
-mod matrix;
 mod gl_resources;
 mod fps_counter;
 mod pon_to_resource;
@@ -71,7 +70,7 @@ impl ViewportSubSystem {
             window: window,
             renderer: Renderer::new(),
             resources: Resources::new(root_path.clone()),
-            default_textures: pon_parser::parse("{ diffuse: static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 } }").unwrap(),
+            default_textures: Pon::from_string("{ diffuse: static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 } }").unwrap(),
             fps_counter: FpsCounter::new()
         };
 
@@ -122,7 +121,7 @@ impl ViewportSubSystem {
             vertex_array: gl_vertex_array,
             textures: gl_textures,
             transform: match system.get_property_value(&entity_id, "transform") {
-                Ok(trans) => matrix::from_prop_node(&trans).unwrap(),
+                Ok(trans) => trans.translate().unwrap(),
                 Err(err) => Matrix4::identity()
             }
         };
@@ -151,14 +150,14 @@ impl ISubSystem for ViewportSubSystem {
         }
         for pr in prop_refs.iter().filter(|pr| pr.property_key == "transform") {
             let transform = match system.get_property_value(&pr.entity_id, "transform") {
-                Ok(trans) => matrix::from_prop_node(&trans).unwrap(),
+                Ok(trans) => trans.translate().unwrap(),
                 Err(err) => Matrix4::identity()
             };
             self.renderer.set_transform(&pr.entity_id, transform);
         }
         for pr in prop_refs.iter().filter(|pr| pr.property_key == "camera") {
             let camera = match system.get_property_value(&pr.entity_id, "camera") {
-                Ok(trans) => matrix::from_prop_node(&trans).unwrap(),
+                Ok(trans) => trans.translate().unwrap(),
                 Err(err) => Matrix4::identity()
             };
             self.renderer.camera = camera;

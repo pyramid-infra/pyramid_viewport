@@ -34,8 +34,8 @@ pub enum Texture {
 fn pon_to_layout(layout_node_array: &Vec<Pon>) -> Result<Layout, PonTranslateErr> {
     let mut layout = vec![];
     for p in layout_node_array {
-        let p = try!(p.as_array());
-        layout.push((try!(p[0].as_string()).clone(), *try!(p[1].as_integer()) as usize));
+        let p = try!(p.translate::<&Vec<Pon>>());
+        layout.push(AttributeSpec(try!(p[0].translate::<&str>()).to_string(), try!(p[1].translate::<i64>()) as usize));
     }
     Ok(Layout::new(layout))
 }
@@ -110,7 +110,7 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr
         //         Err(err) => Err(PonTranslateErr::Generic(format!("Failed to load mesh: {}: {:?}", config.0, err)))
         //     }
         // },
-        _ => Err(PonTranslateErr::UnrecognizedTypedPon(type_name.clone()))
+        _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
     }
 }
 
@@ -170,7 +170,7 @@ pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PonTransl
                 };
             }
         },
-        _ => Err(PonTranslateErr::UnrecognizedTypedPon(type_name.clone()))
+        _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
     }
 }
 
@@ -182,17 +182,17 @@ pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PonTr
             let vertex = try!(try!(data.get_object_field("vertex")).as_transform());
             let fragment = try!(try!(data.get_object_field("fragment")).as_transform());
 
-            let vertex_string_arg = try!(vertex.data.as_string()).clone();
+            let vertex_string_arg = try!(vertex.data.translate::<&str>()).to_string();
             let vertex_src = match vertex.type_name.as_str() {
                 "shader_from_file" => string_from_file(&root_path.join(Path::new(&vertex_string_arg))),
                 "static_shader" => vertex_string_arg,
-                _ => return Err(PonTranslateErr::UnrecognizedTypedPon(vertex.type_name.to_string()))
+                _ => return Err(PonTranslateErr::UnrecognizedType(vertex.type_name.to_string()))
             };
-            let fragment_string_arg = try!(fragment.data.as_string()).clone();
+            let fragment_string_arg = try!(fragment.data.translate::<&str>()).to_string();
             let fragment_src = match fragment.type_name.as_str() {
                 "shader_from_file" => string_from_file(&root_path.join(Path::new(&fragment_string_arg))),
                 "static_shader" => fragment_string_arg,
-                _ => return Err(PonTranslateErr::UnrecognizedTypedPon(fragment.type_name.to_string()))
+                _ => return Err(PonTranslateErr::UnrecognizedType(fragment.type_name.to_string()))
             };
 
             return Ok(ShaderSource {
@@ -200,7 +200,7 @@ pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PonTr
                 fragment_src: fragment_src
             })
         },
-        _ => Err(PonTranslateErr::UnrecognizedTypedPon(type_name.clone()))
+        _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
     }
 }
 
