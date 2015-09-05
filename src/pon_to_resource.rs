@@ -59,8 +59,10 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr
         },
         "grid_mesh" => {
             let mut grid = Grid::new();
-            let layout_node_array = try!(data.field_as::<&Vec<Pon>>("layout"));
-            grid.layout = try!(pon_to_layout(layout_node_array));
+            grid.layout = match data.field_as::<&Vec<Pon>>("layout") {
+                Ok(layout_node_array) => try!(pon_to_layout(layout_node_array)),
+                _ => Layout::position_texcoord_normal()
+            };
             grid.n_vertices_width = try!(data.field_as::<i64>("n_vertices_width")) as u32;
             grid.n_vertices_height = try!(data.field_as::<i64>("n_vertices_height")) as u32;
 
