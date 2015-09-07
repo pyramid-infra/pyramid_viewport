@@ -120,7 +120,7 @@ impl ViewportSubSystem {
             shader: gl_shader,
             vertex_array: gl_vertex_array,
             textures: gl_textures,
-            transform: match system.get_property_value(&entity_id, "transform") {
+            transform: match system.get_property_value(&entity_id, "transformed") {
                 Ok(trans) => trans.translate().unwrap(),
                 Err(err) => Matrix4::identity()
             }
@@ -148,8 +148,8 @@ impl ISubSystem for ViewportSubSystem {
             self.renderer_remove(&entity_id);
             self.renderer_add(system, &entity_id);
         }
-        for pr in prop_refs.iter().filter(|pr| pr.property_key == "transform") {
-            let transform = match system.get_property_value(&pr.entity_id, "transform") {
+        for pr in prop_refs.iter().filter(|pr| pr.property_key == "transformed") {
+            let transform = match system.get_property_value(&pr.entity_id, "transformed") {
                 Ok(trans) => trans.translate().unwrap(),
                 Err(err) => Matrix4::identity()
             };
