@@ -166,7 +166,7 @@ impl ISubSystem for ViewportSubSystem {
 
     fn update(&mut self, system: &mut ISystem, delta_time: time::Duration) {
         self.fps_counter.add_frame(delta_time);
-        self.window.set_title(format!("pyramid {:.0} fps", self.fps_counter.fps()).as_str());
+        self.window.set_title(&format!("pyramid {}", self.fps_counter.to_string()));
 
         unsafe {
             gl::ClearColor(0.3, 0.3, 0.3, 1.0);
