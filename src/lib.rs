@@ -88,19 +88,19 @@ impl ViewportSubSystem {
 
     fn renderer_add(&mut self, system: &ISystem, entity_id: &EntityId) {
         let shader_key: Pon = match system.get_property_value(entity_id, "shader") {
-            Ok(shader) => shader,
+            Ok(shader) => shader.clone(),
             Err(err) => Pon::String("basic".to_string())
         };
         let mesh_key: Pon = match system.get_property_value(entity_id, "mesh") {
-            Ok(mesh) => mesh,
+            Ok(mesh) => mesh.clone(),
             Err(err) => return ()
         };
         let texture_keys: Pon = match system.get_property_value(entity_id, "textures") {
-            Ok(textures) => textures,
+            Ok(textures) => textures.clone(),
             Err(err) => {
                 match system.get_property_value(entity_id, "diffuse") {
                     Ok(diffuse) => Pon::Object(hashmap![
-                        "diffuse".to_string() => diffuse
+                        "diffuse".to_string() => diffuse.clone()
                     ]),
                     Err(_) => return()
                 }
