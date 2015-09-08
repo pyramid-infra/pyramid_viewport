@@ -51,7 +51,7 @@ impl Renderer {
                 gl::BindVertexArray(node.vertex_array.vao);
                 gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, node.vertex_array.mesh.ebo);
 
-                let trans_loc = gl::GetUniformLocation(node.shader.program, CString::new("trans").unwrap().as_ptr());
+                let trans_loc = gl::GetUniformLocation(node.shader.program, CString::new("transform").unwrap().as_ptr());
 
                 let transform = self.camera * node.transform;
                 let t: [f32; 16] = mem::transmute(transform);
