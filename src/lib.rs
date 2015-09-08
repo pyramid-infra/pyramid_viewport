@@ -129,6 +129,10 @@ impl ViewportSubSystem {
             uniforms: match system.get_property_value(&entity_id, "uniforms") {
                 Ok(uniforms) => uniforms.translate().unwrap(),
                 Err(err) => ShaderUniforms(vec![])
+            },
+            alpha: match system.get_property_value(&entity_id, "alpha") {
+                Ok(trans) => *trans.translate::<&bool>().unwrap(),
+                Err(err) => false
             }
         };
         self.renderer.add_node(render_node);
@@ -144,7 +148,7 @@ impl ISubSystem for ViewportSubSystem {
         //println!("CHANGED {:?}", prop_refs);
         let renderable_changed: HashSet<EntityId> = prop_refs.iter()
             .filter_map(|pr| {
-                if (pr.property_key == "mesh" || pr.property_key == "diffuse") {
+                if (pr.property_key == "mesh" || pr.property_key == "diffuse" || pr.property_key == "alpha") {
                     return Some(pr.entity_id);
                 } else {
                     return None;
@@ -174,10 +178,6 @@ impl ISubSystem for ViewportSubSystem {
         self.fps_counter.add_frame(delta_time);
         self.window.set_title(&format!("pyramid {}", self.fps_counter.to_string()));
 
-        unsafe {
-            gl::ClearColor(0.3, 0.3, 0.3, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-        }
         self.renderer.render();
         self.window.swap_buffers();
 
