@@ -5,6 +5,7 @@ extern crate image;
 use pyramid::document::*;
 use resources::*;
 use gl_resources::*;
+use shader_uniforms::*;
 
 use gl::types::*;
 use std::fs::File;
@@ -22,13 +23,14 @@ pub struct Renderer {
     pub camera: Matrix4<f32>
 }
 
-#[derive(Clone)]
+
 pub struct RenderNode {
     pub id: u64,
     pub shader: Rc<GLShaderProgram>,
     pub vertex_array: Rc<GLVertexArray>,
     pub transform: Matrix4<f32>,
-    pub textures: Vec<(String, Rc<GLTexture>)>
+    pub textures: Vec<(String, Rc<GLTexture>)>,
+    pub uniforms: ShaderUniforms
 }
 
 
@@ -54,8 +56,12 @@ impl Renderer {
                 let trans_loc = gl::GetUniformLocation(node.shader.program, CString::new("transform").unwrap().as_ptr());
 
                 let transform = self.camera * node.transform;
-                let t: [f32; 16] = mem::transmute(transform);
-                gl::UniformMatrix4fv(trans_loc, 1, gl::FALSE, t.as_ptr());
+                transform.gl_write_to_uniform(trans_loc);
+
+                for &(ref name, ref uniform) in &node.uniforms.0 {
+                    let loc = gl::GetUniformLocation(node.shader.program, CString::new(name.to_string()).unwrap().as_ptr());
+                    uniform.gl_write_to_uniform(loc);
+                }
 
                 let mut texi = 0;
                 for &(ref name, ref texture) in &node.textures {

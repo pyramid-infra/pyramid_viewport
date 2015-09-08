@@ -16,6 +16,7 @@ mod resources;
 mod gl_resources;
 mod fps_counter;
 mod pon_to_resource;
+mod shader_uniforms;
 
 use pyramid::interface::*;
 use pyramid::pon::*;
@@ -29,6 +30,7 @@ use gl_resources::*;
 use resources::*;
 use fps_counter::*;
 use pon_to_resource::*;
+use shader_uniforms::*;
 
 use image::RgbaImage;
 use std::collections::HashMap;
@@ -123,6 +125,10 @@ impl ViewportSubSystem {
             transform: match system.get_property_value(&entity_id, "transformed") {
                 Ok(trans) => trans.translate().unwrap(),
                 Err(err) => Matrix4::identity()
+            },
+            uniforms: match system.get_property_value(&entity_id, "uniforms") {
+                Ok(uniforms) => uniforms.translate().unwrap(),
+                Err(err) => ShaderUniforms(vec![])
             }
         };
         self.renderer.add_node(render_node);

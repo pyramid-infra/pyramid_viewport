@@ -5,13 +5,9 @@ use pyramid::pon::*;
 use mesh::*;
 
 use std::path::Path;
-use std::fmt;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
-use std::thread;
-use std::sync::mpsc;
-use std::sync::mpsc::*;
 use std::io::Cursor;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::borrow::Cow;
@@ -68,48 +64,6 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr
 
             return Ok(grid.into());
         },
-        // "mesh_from_file" => {
-        //     let config = match arg.translate::<&str>() {
-        //         Ok(filename) => (filename.clone(), "polySurface1".to_string()),
-        //         Err(err) => {
-        //             match arg.as_object() {
-        //                 Ok(arg) => {
-        //                     (match arg.get("filename") {
-        //                         Some(filename) => try!(filename.translate::<&str>()).clone(),
-        //                         None => return Err(PonTranslateErr::NoSuchField { field: "filename".to_string() })
-        //                     }, match arg.get("mesh_id") {
-        //                         Some(mesh_id) => try!(mesh_id.translate::<&str>()).clone(),
-        //                         None => "polySurface1".to_string()
-        //                     })
-        //                 },
-        //                 Err(err) => return Err(err)
-        //             }
-        //         }
-        //     };
-        //     let path_buff = root_path.join(Path::new(&config.0));
-        //     let path = path_buff.as_path();
-        //     println!("Loading mesh {:?}", path);
-        //     let mut file = match File::open(&path) {
-        //         Err(why) => panic!("couldn't open {}: {}", config.0, Error::description(&why)),
-        //         Ok(file) => file,
-        //     };
-        //     let mut content = String::new();
-        //     return match file.read_to_string(&mut content) {
-        //         Ok(_) => {
-        //             let dx = match legacy_directx_x_parse::file(&content.as_str()) {
-        //                 Ok(mesh) => mesh,
-        //                 Err(err) => panic!("Failed to load mesh {:?} with error: {:?}", path, err)
-        //             };
-        //             let mesh = match dx.to_mesh(config.1) {
-        //                 Ok(mesh) => mesh,
-        //                 Err(err) => panic!("Failed to load mesh {:?} with error: {:?}", path, err)
-        //             };
-        //             println!("Loaded mesh {}", config.0);
-        //             return Ok(mesh);
-        //         },
-        //         Err(err) => Err(PonTranslateErr::Generic(format!("Failed to load mesh: {}: {:?}", config.0, err)))
-        //     }
-        // },
         _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
     }
 }
