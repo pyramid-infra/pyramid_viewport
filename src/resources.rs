@@ -49,8 +49,8 @@ impl Resources {
             },
             Entry::Vacant(v) => {
                 let shader = pon_to_shader(&self.root_path, shader_program_key).unwrap();
-                let vs = &GLShader::new(&shader.vertex_src, gl::VERTEX_SHADER);
-                let fs = &GLShader::new(&shader.fragment_src, gl::FRAGMENT_SHADER);
+                let vs = &GLShader::new(&shader.vertex_src, gl::VERTEX_SHADER, &shader.vertex_debug_source_name);
+                let fs = &GLShader::new(&shader.fragment_src, gl::FRAGMENT_SHADER, &shader.fragment_debug_source_name);
                 v.insert(Promise::resolved(Rc::new(GLShaderProgram::new(vs, fs))))
             }
         }.then(|x| x.clone());

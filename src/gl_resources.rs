@@ -133,7 +133,7 @@ pub struct GLShader {
 }
 
 impl GLShader {
-    pub fn new(source: &str, ty: GLenum) -> GLShader {
+    pub fn new(source: &str, ty: GLenum, debug_source_name: &str) -> GLShader {
         println!("Loading GL shader into memory");
         let shader;
 
@@ -155,7 +155,7 @@ impl GLShader {
                 let mut buf = Vec::with_capacity(len as usize);
                 buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
                 gl::GetShaderInfoLog(shader, len, ptr::null_mut(), buf.as_mut_ptr() as *mut GLchar);
-                panic!("{}", str::from_utf8(&buf).ok().expect("ShaderInfoLog not valid utf8"));
+                panic!("{}: {}", debug_source_name, str::from_utf8(&buf).ok().expect("ShaderInfoLog not valid utf8"));
             }
         }
         println!("Loading GL shader into memory done");

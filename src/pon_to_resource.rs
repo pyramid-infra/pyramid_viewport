@@ -15,7 +15,9 @@ use std::borrow::Cow;
 #[derive(Debug)]
 pub struct ShaderSource {
     pub vertex_src: String,
+    pub vertex_debug_source_name: String,
     pub fragment_src: String,
+    pub fragment_debug_source_name: String
 }
 
 #[derive(Clone)]
@@ -144,7 +146,9 @@ pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PonTr
 
             return Ok(ShaderSource {
                 vertex_src: vertex_src,
-                fragment_src: fragment_src
+                vertex_debug_source_name: vertex.to_string(),
+                fragment_src: fragment_src,
+                fragment_debug_source_name: fragment.to_string()
             })
         },
         _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))

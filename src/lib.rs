@@ -89,8 +89,8 @@ impl ViewportSubSystem {
         };
 
         let shader_program = GLShaderProgram::new(
-            &GLShader::new(str::from_utf8(SHADER_BASIC_VS).unwrap(), gl::VERTEX_SHADER),
-            &GLShader::new(str::from_utf8(SHADER_BASIC_FS).unwrap(), gl::FRAGMENT_SHADER));
+            &GLShader::new(str::from_utf8(SHADER_BASIC_VS).unwrap(), gl::VERTEX_SHADER, "bundled"),
+            &GLShader::new(str::from_utf8(SHADER_BASIC_FS).unwrap(), gl::FRAGMENT_SHADER, "bundled"));
 
         viewport.resources.gl_shader_programs.insert(Pon::String("basic".to_string()), Promise::resolved(Rc::new(shader_program)));
 
