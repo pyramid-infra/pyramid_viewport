@@ -38,12 +38,11 @@ impl Resources {
             gl_vertex_arrays: HashMap::new(),
             textures: HashMap::new(),
             gl_textures: HashMap::new(),
-            async_runner: AsyncRunner::new()
+            async_runner: AsyncRunner::new_pooled(4)
         }
     }
     pub fn get(&mut self, mesh_key: &Pon, shader_program_key: &Pon, texture_keys: Vec<Pon>)
         -> Promise<RenderNodeResources> {
-        println!("Load resource");
         let mut gl_shader_program = match self.gl_shader_programs.entry(shader_program_key.clone())  {
             Entry::Occupied(o) => {
                 o.into_mut()

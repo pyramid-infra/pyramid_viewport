@@ -108,7 +108,6 @@ impl Renderer {
     }
 
     pub fn add_node(&mut self, node: RenderNode) {
-        println!("Renderer add {:?}", node);
         if node.config.alpha {
             self.translucent_nodes.push(node);
         } else {

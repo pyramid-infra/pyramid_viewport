@@ -43,6 +43,7 @@ use std::str;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
+use time::*;
 use ppromise::*;
 
 static SHADER_BASIC_VS: &'static [u8] = include_bytes!("../shaders/basic_vs.glsl");
@@ -61,7 +62,8 @@ pub struct ViewportSubSystem {
     resources: Resources,
     pending_add: Vec<PendingAdd>,
     default_textures: Pon,
-    fps_counter: FpsCounter
+    fps_counter: FpsCounter,
+    total_time: Duration
 }
 
 impl ViewportSubSystem {
@@ -82,7 +84,8 @@ impl ViewportSubSystem {
             resources: Resources::new(root_path.clone()),
             pending_add: vec![],
             default_textures: Pon::from_string("{ diffuse: static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 } }").unwrap(),
-            fps_counter: FpsCounter::new()
+            fps_counter: FpsCounter::new(),
+            total_time: Duration::zero()
         };
 
         let shader_program = GLShaderProgram::new(
@@ -183,12 +186,14 @@ impl ISubSystem for ViewportSubSystem {
     }
 
     fn update(&mut self, system: &mut ISystem, delta_time: time::Duration) {
+        self.total_time = self.total_time + delta_time;
         self.fps_counter.add_frame(delta_time);
         self.window.set_title(&format!("pyramid {}", self.fps_counter.to_string()));
-        
+
         self.resources.update();
 
         let pending_adds = mem::replace(&mut self.pending_add, vec![]);
+        let pending_adds_was_0 = pending_adds.len() == 0;
         self.pending_add = pending_adds.into_iter().filter_map(|pending_add| {
             let is_some = {
                 pending_add.resources.value().is_some()
@@ -204,6 +209,9 @@ impl ISubSystem for ViewportSubSystem {
                 return Some(pending_add);
             }
         }).collect();
+        if self.pending_add.len() == 0 && !pending_adds_was_0 {
+            println!("All entities added to renderer. {} ms", self.total_time.num_milliseconds());
+        }
 
         self.renderer.render();
         self.window.swap_buffers();
