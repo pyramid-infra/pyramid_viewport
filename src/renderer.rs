@@ -15,12 +15,15 @@ use std::ptr;
 use std::ffi::CString;
 use std::mem;
 use std::rc::Rc;
+use std::collections::HashMap;
+use std::cell::RefCell;
 
 
 
 pub struct Renderer {
-    opaque_nodes: Vec<RenderNode>,
-    translucent_nodes: Vec<RenderNode>,
+    opaque_nodes: Vec<Rc<RefCell<RenderNode>>>,
+    translucent_nodes: Vec<Rc<RefCell<RenderNode>>>,
+    nodes_by_id: HashMap<u64, Rc<RefCell<RenderNode>>>,
     pub camera: Matrix4<f32>
 }
 
@@ -52,6 +55,7 @@ impl Renderer {
         Renderer {
             opaque_nodes: vec![],
             translucent_nodes: vec![],
+            nodes_by_id: HashMap::new(),
             camera: Matrix4::identity()
         }
     }
@@ -96,35 +100,36 @@ impl Renderer {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
             gl::Disable(gl::BLEND);
             for node in &self.opaque_nodes {
-                self.draw_node(node);
+                self.draw_node(&*node.borrow());
             }
             gl::DepthMask(gl::FALSE);
             gl::Enable(gl::BLEND);
             gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
             for node in &self.translucent_nodes {
-                self.draw_node(node);
+                self.draw_node(&*node.borrow());
             }
         };
     }
 
     pub fn add_node(&mut self, node: RenderNode) {
-        if node.config.alpha {
-            self.translucent_nodes.push(node);
+        let has_alpha = node.config.alpha;
+        let id = node.id.clone();
+        let node = Rc::new(RefCell::new(node));
+        if has_alpha {
+            self.translucent_nodes.push(node.clone());
         } else {
-            self.opaque_nodes.push(node);
+            self.opaque_nodes.push(node.clone());
         }
+        self.nodes_by_id.insert(id, node);
     }
     pub fn remove_node(&mut self, key: &u64) {
-        self.translucent_nodes.retain(|x| x.id != *key);
-        self.opaque_nodes.retain(|x| x.id != *key);
+        self.translucent_nodes.retain(|x| x.borrow().id != *key);
+        self.opaque_nodes.retain(|x| x.borrow().id != *key);
+        self.nodes_by_id.remove(key);
     }
     pub fn set_transform(&mut self, key: &u64, transform: Matrix4<f32>) {
-        match self.translucent_nodes.iter_mut().find(|x| x.id == *key) {
-            Some(node) => node.config.transform = transform,
-            None => {}
-        }
-        match self.opaque_nodes.iter_mut().find(|x| x.id == *key) {
-            Some(node) => node.config.transform = transform,
+        match self.nodes_by_id.get_mut(key) {
+            Some(node) => node.borrow_mut().config.transform = transform,
             None => {}
         }
     }
