@@ -5,10 +5,12 @@ use std::mem;
 use cgmath::*;
 use std::collections::HashMap;
 use pyramid::pon::*;
+use std::fmt::Debug;
 
+#[derive(Debug)]
 pub struct ShaderUniforms(pub Vec<(String, Box<ShaderUniform>)>);
 
-pub trait ShaderUniform {
+pub trait ShaderUniform : Debug {
     fn gl_write_to_uniform(&self, uniform_location: GLint);
 }
 impl ShaderUniform for f32 {

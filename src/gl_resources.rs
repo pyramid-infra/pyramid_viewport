@@ -15,7 +15,7 @@ use std::rc::Rc;
 use pon_to_resource::*;
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GLMesh {
     pub layout: Layout,
     pub vbo: GLuint,
@@ -25,6 +25,7 @@ pub struct GLMesh {
 
 impl GLMesh {
     pub fn new(mesh: &Mesh) -> GLMesh {
+        println!("Loading GL mesh into memory");
         let mut vbo = 0;
         let mut ebo = 0;
 
@@ -45,6 +46,7 @@ impl GLMesh {
                 mem::transmute(&mesh.element_data[0]),
                 gl::STATIC_DRAW);
         }
+        println!("Loading GL mesh into memory done.");
         return GLMesh {
             layout: mesh.layout.clone(),
             vbo: vbo,
@@ -55,6 +57,7 @@ impl GLMesh {
 
 }
 
+#[derive(Debug)]
 pub struct GLVertexArray {
     pub mesh: Rc<GLMesh>,
     pub vao: GLuint
@@ -62,6 +65,7 @@ pub struct GLVertexArray {
 
 impl GLVertexArray {
     pub fn new(shader_program: &Rc<GLShaderProgram>, mesh: &Rc<GLMesh>) -> GLVertexArray {
+        println!("Loading GL vertex array into memory");
         let mut vao = 0;
 
         unsafe {
@@ -79,6 +83,7 @@ impl GLVertexArray {
                 gl::VertexAttribPointer(gl_attr, attr.size as GLint, gl::FLOAT, gl::FALSE as GLboolean, stride, offset);
             }
         }
+        println!("Loading GL vertex array into memory done");
         GLVertexArray {
             mesh: mesh.clone(),
             vao: vao
@@ -91,42 +96,45 @@ impl Drop for GLVertexArray {
     }
 }
 
+#[derive(Debug)]
 pub struct GLTexture {
     pub texture: GLuint
 }
 
 
 impl GLTexture {
-    pub fn new(image: Texture) -> GLTexture {
-        println!("create_texture START");
+    pub fn new(image: &Texture) -> GLTexture {
+        println!("Loading GL texture into memory");
         let mut tex = 0;
         unsafe {
             gl::GenTextures(1, &mut tex);
             gl::BindTexture(gl::TEXTURE_2D, tex);
             match image {
-                Texture::Image(image) => {
+                &Texture::Image(ref image) => {
                     gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as GLint, image.width() as GLint, image.height() as GLint, 0,
-                        gl::RGBA, gl::UNSIGNED_BYTE, mem::transmute(&image.into_raw()[0]));
+                        gl::RGBA, gl::UNSIGNED_BYTE, mem::transmute(&image.clone().into_raw()[0]));
                 },
-                Texture::Floats { width, height, data } => {
-                    gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RED as GLint, width as GLint, height as GLint, 0,
+                &Texture::Floats { ref width, ref height, ref data } => {
+                    gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RED as GLint, *width as GLint, *height as GLint, 0,
                         gl::RED, gl::FLOAT, mem::transmute(&data[0]));
                 }
             }
         }
-        println!("create_texture END");
+        println!("Loading GL texture into memory done");
         return GLTexture {
             texture: tex
         };
     }
 }
 
+#[derive(Debug)]
 pub struct GLShader {
     pub shader: GLuint
 }
 
 impl GLShader {
     pub fn new(source: &str, ty: GLenum) -> GLShader {
+        println!("Loading GL shader into memory");
         let shader;
 
         unsafe {
@@ -150,19 +158,21 @@ impl GLShader {
                 panic!("{}", str::from_utf8(&buf).ok().expect("ShaderInfoLog not valid utf8"));
             }
         }
-
+        println!("Loading GL shader into memory done");
         GLShader {
             shader: shader
         }
     }
 }
 
+#[derive(Debug)]
 pub struct GLShaderProgram {
     pub program: GLuint
 }
 
 impl GLShaderProgram {
     pub fn new(vs_shader: &GLShader, fs_shader: &GLShader) -> GLShaderProgram {
+        println!("Loading GL shader program into memory");
         unsafe {
             let program = gl::CreateProgram();
             gl::AttachShader(program, vs_shader.shader);
@@ -181,6 +191,7 @@ impl GLShaderProgram {
                 gl::GetProgramInfoLog(program, len, ptr::null_mut(), buf.as_mut_ptr() as *mut GLchar);
                 panic!("{}", str::from_utf8(&buf).ok().expect("ProgramInfoLog not valid utf8"));
             }
+            println!("Loading GL shader program into memory done");
             GLShaderProgram {
                 program: program
             }

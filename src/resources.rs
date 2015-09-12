@@ -3,87 +3,124 @@ extern crate gl;
 use pyramid::pon::*;
 use gl_resources::*;
 use pon_to_resource::*;
+use renderer::*;
 use mesh::*;
 use gl::types::*;
 
 use std::path::PathBuf;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::rc::Rc;
 use std::cell::RefCell;
 use image::RgbaImage;
-
-
-pub struct ResourceContainer<T> {
-    construct: Box<Fn(&Pon) -> T>,
-    resources: HashMap<Pon, Rc<T>>
-}
-
-impl<T> ResourceContainer<T> {
-    pub fn new<F: Fn(&Pon) -> T + 'static>(construct: F) -> ResourceContainer<T> {
-        ResourceContainer {
-            construct: Box::new(construct),
-            resources: HashMap::new()
-        }
-    }
-    pub fn get(&mut self, key: &Pon) -> Rc<T> {
-        let value = match self.resources.get(key) {
-            Some(value) => return value.clone(),
-            None => {}
-        };
-        let resource = Rc::new(self.construct.call((key,)));
-        self.resources.insert(key.clone(), resource.clone());
-        resource
-    }
-    pub fn set(&mut self, key: &Pon, value: Rc<T>) {
-        self.resources.insert(key.clone(), value.clone());
-    }
-}
-
+use ppromise::*;
 
 
 pub struct Resources {
-    pub gl_shader_programs: Rc<RefCell<ResourceContainer<GLShaderProgram>>>,
+    pub meshes: HashMap<Pon, Promise<Rc<Mesh>>>,
+    pub gl_meshes: HashMap<Pon, Promise<Rc<GLMesh>>>,
+    pub gl_shader_programs: HashMap<Pon, Promise<Rc<GLShaderProgram>>>,
+    pub gl_vertex_arrays: HashMap<Pon, Promise<Rc<GLVertexArray>>>,
+    pub textures: HashMap<Pon, Promise<Rc<Texture>>>,
+    pub gl_textures: HashMap<Pon, Promise<Rc<GLTexture>>>,
 
-    pub gl_meshes: Rc<RefCell<ResourceContainer<GLMesh>>>,
-    pub gl_vertex_arrays: Rc<RefCell<ResourceContainer<GLVertexArray>>>,
-
-    pub gl_textures: Rc<RefCell<ResourceContainer<GLTexture>>>
+    root_path: PathBuf,
+    async_runner: AsyncRunner
 }
 
 impl Resources {
     pub fn new(root_path: PathBuf) -> Resources {
-        let root_path2 = root_path.clone();
-        let meshes = Rc::new(RefCell::new(ResourceContainer::new(move |key| pon_to_mesh(&root_path2, key).unwrap())));
-        let gl_meshes = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
-            let mesh = meshes.borrow_mut().get(key).clone();
-            GLMesh::new(&*mesh)
-        })));
-        let root_path2 = root_path.clone();
-        let gl_shader_programs = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
-            let shader = pon_to_shader(&root_path2, key).unwrap();
-            GLShaderProgram::new(&GLShader::new(&shader.vertex_src, gl::VERTEX_SHADER), &GLShader::new(&shader.fragment_src, gl::FRAGMENT_SHADER))
-        })));
-        let gl_shader_programs2 = gl_shader_programs.clone();
-        let gl_meshes2 = gl_meshes.clone();
-        let gl_vertex_arrays = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
-            let arr = key.translate::<&Vec<Pon>>().unwrap();
-            let shader_key = arr[0].clone();
-            let mesh_key = arr[1].clone();
-            let gl_shader = gl_shader_programs2.borrow_mut().get(&shader_key);
-            let gl_mesh = gl_meshes2.borrow_mut().get(&mesh_key);
-            GLVertexArray::new(&gl_shader, &gl_mesh)
-        })));
-        let textures = Rc::new(RefCell::new(ResourceContainer::new(move |key| pon_to_texture(&root_path, &key).unwrap())));
-        let gl_textures = Rc::new(RefCell::new(ResourceContainer::new(move |key| {
-            let texture = textures.borrow_mut().get(key).clone();
-            GLTexture::new((*texture).clone())
-        })));
-
         Resources {
-            gl_shader_programs: gl_shader_programs,
-            gl_meshes: gl_meshes,
-            gl_vertex_arrays: gl_vertex_arrays,
-            gl_textures: gl_textures,
+            root_path: root_path,
+            meshes: HashMap::new(),
+            gl_meshes: HashMap::new(),
+            gl_shader_programs: HashMap::new(),
+            gl_vertex_arrays: HashMap::new(),
+            textures: HashMap::new(),
+            gl_textures: HashMap::new(),
+            async_runner: AsyncRunner::new()
         }
+    }
+    pub fn get(&mut self, mesh_key: &Pon, shader_program_key: &Pon, texture_keys: Vec<Pon>)
+        -> Promise<RenderNodeResources> {
+        println!("Load resource");
+        let mut gl_shader_program = match self.gl_shader_programs.entry(shader_program_key.clone())  {
+            Entry::Occupied(o) => {
+                o.into_mut()
+            },
+            Entry::Vacant(v) => {
+                let shader = pon_to_shader(&self.root_path, shader_program_key).unwrap();
+                let vs = &GLShader::new(&shader.vertex_src, gl::VERTEX_SHADER);
+                let fs = &GLShader::new(&shader.fragment_src, gl::FRAGMENT_SHADER);
+                v.insert(Promise::resolved(Rc::new(GLShaderProgram::new(vs, fs))))
+            }
+        }.then(|x| x.clone());
+        let gl_vertex_array_key = Pon::Array(vec![mesh_key.clone(), shader_program_key.clone()]);
+        let mut gl_vertex_array = match self.gl_vertex_arrays.entry(gl_vertex_array_key.clone())  {
+            Entry::Occupied(o) => {
+                o.into_mut()
+            },
+            Entry::Vacant(v) => {
+                let mut gl_mesh = match self.gl_meshes.entry(mesh_key.clone())  {
+                    Entry::Occupied(o) => {
+                        o.into_mut()
+                    },
+                    Entry::Vacant(v) => {
+                        let mut mesh = match self.meshes.entry(mesh_key.clone()) {
+                            Entry::Occupied(o) => {
+                                o.into_mut()
+                            },
+                            Entry::Vacant(v) => {
+                                let mesh_key = mesh_key.clone();
+                                let root_path = self.root_path.clone();
+                                let p = self.async_runner
+                                    .exec_async(move || pon_to_mesh(&root_path, &mesh_key).unwrap())
+                                    .then_move(|mesh| { println!("mesh to rc"); Rc::new(mesh) });
+                                v.insert(p)
+                            }
+                        }.then(|x| x.clone());
+                        v.insert(mesh.then(|mesh| { println!("rc mesh to gl mesh"); Rc::new(GLMesh::new(mesh)) }))
+                    }
+                }.then(|x| x.clone());
+                v.insert((&mut gl_shader_program.then(|x| x.clone()), &mut gl_mesh).join().then(|&(ref gl_shader_program, ref gl_mesh)| {
+                    Rc::new(GLVertexArray::new(gl_shader_program, gl_mesh))
+                }))
+            }
+        }.then(|x| x.clone());
+        let mut gl_textures = vec![];
+        for texture_key in texture_keys {
+            let gl_texture = match self.gl_textures.entry(texture_key.clone())  {
+                Entry::Occupied(o) => {
+                    o.into_mut()
+                },
+                Entry::Vacant(v) => {
+                    let texture = match self.textures.entry(texture_key.clone()) {
+                        Entry::Occupied(o) => {
+                            o.into_mut()
+                        },
+                        Entry::Vacant(v) => {
+                            let texture_key = texture_key.clone();
+                            let root_path = self.root_path.clone();
+                            let p = self.async_runner
+                                .exec_async(move || pon_to_texture(&root_path, &texture_key).unwrap())
+                                .then_move(|texture| Rc::new(texture));
+                            v.insert(p)
+                        }
+                    };
+                    v.insert(texture.then(|texture| { println!("rc texture to gl texture"); Rc::new(GLTexture::new(texture)) }))
+                }
+            };
+            gl_textures.push(gl_texture.then(|x| x.clone()));
+        }
+        (&mut gl_shader_program, &mut gl_vertex_array, &mut gl_textures.join()).join().then_move(|(sp, va, txs)| {
+            RenderNodeResources {
+                shader: sp,
+                vertex_array: va,
+                textures: txs
+            }
+        })
+    }
+    pub fn update(&mut self) {
+        self.async_runner.try_resolve_all();
     }
 }

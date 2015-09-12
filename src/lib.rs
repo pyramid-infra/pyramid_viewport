@@ -10,6 +10,7 @@ extern crate byteorder;
 extern crate pyramid;
 extern crate glutin;
 extern crate mesh;
+extern crate ppromise;
 
 mod renderer;
 mod resources;
@@ -42,16 +43,23 @@ use std::str;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
+use ppromise::*;
 
 static SHADER_BASIC_VS: &'static [u8] = include_bytes!("../shaders/basic_vs.glsl");
 static SHADER_BASIC_FS: &'static [u8] = include_bytes!("../shaders/basic_fs.glsl");
 
+struct PendingAdd {
+    id: EntityId,
+    resources: Promise<RenderNodeResources>,
+    config: RenderNodeConfig
+}
 
 pub struct ViewportSubSystem {
     root_path: PathBuf,
     window: glutin::Window,
     renderer: Renderer,
     resources: Resources,
+    pending_add: Vec<PendingAdd>,
     default_textures: Pon,
     fps_counter: FpsCounter
 }
@@ -72,6 +80,7 @@ impl ViewportSubSystem {
             window: window,
             renderer: Renderer::new(),
             resources: Resources::new(root_path.clone()),
+            pending_add: vec![],
             default_textures: Pon::from_string("{ diffuse: static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 } }").unwrap(),
             fps_counter: FpsCounter::new()
         };
@@ -80,7 +89,7 @@ impl ViewportSubSystem {
             &GLShader::new(str::from_utf8(SHADER_BASIC_VS).unwrap(), gl::VERTEX_SHADER),
             &GLShader::new(str::from_utf8(SHADER_BASIC_FS).unwrap(), gl::FRAGMENT_SHADER));
 
-        viewport.resources.gl_shader_programs.borrow_mut().set(&Pon::String("basic".to_string()), Rc::new(shader_program));
+        viewport.resources.gl_shader_programs.insert(Pon::String("basic".to_string()), Promise::resolved(Rc::new(shader_program)));
 
         viewport
     }
@@ -109,33 +118,32 @@ impl ViewportSubSystem {
             }
         };
 
-        let gl_shader = self.resources.gl_shader_programs.borrow_mut().get(&shader_key);
-        let gl_vertex_array = self.resources.gl_vertex_arrays.borrow_mut().get(&Pon::Array(vec![shader_key, mesh_key]));
-        let mut gl_textures = vec![];
+        let mut texture_keys_vec = vec![];
+        let mut texture_ids = vec![];
         for (name, texture_key) in texture_keys.translate::<&HashMap<String, Pon>>().unwrap() {
-            let gl_texture = self.resources.gl_textures.borrow_mut().get(texture_key);
-            gl_textures.push((name.to_string(), gl_texture));
+            texture_ids.push(name.to_string());
+            texture_keys_vec.push(texture_key.clone());
         }
 
-        let render_node = RenderNode {
+        self.pending_add.push(PendingAdd {
             id: entity_id.clone(),
-            shader: gl_shader,
-            vertex_array: gl_vertex_array,
-            textures: gl_textures,
-            transform: match system.get_property_value(&entity_id, "transformed") {
-                Ok(trans) => trans.translate().unwrap(),
-                Err(err) => Matrix4::identity()
-            },
-            uniforms: match system.get_property_value(&entity_id, "uniforms") {
-                Ok(uniforms) => uniforms.translate().unwrap(),
-                Err(err) => ShaderUniforms(vec![])
-            },
-            alpha: match system.get_property_value(&entity_id, "alpha") {
-                Ok(trans) => *trans.translate::<&bool>().unwrap(),
-                Err(err) => false
+            resources: self.resources.get(&mesh_key, &shader_key, texture_keys_vec),
+            config: RenderNodeConfig {
+                texture_ids: texture_ids,
+                transform: match system.get_property_value(&entity_id, "transformed") {
+                    Ok(trans) => trans.translate().unwrap(),
+                    Err(err) => Matrix4::identity()
+                },
+                uniforms: match system.get_property_value(&entity_id, "uniforms") {
+                    Ok(uniforms) => uniforms.translate().unwrap(),
+                    Err(err) => ShaderUniforms(vec![])
+                },
+                alpha: match system.get_property_value(&entity_id, "alpha") {
+                    Ok(trans) => *trans.translate::<&bool>().unwrap(),
+                    Err(err) => false
+                }
             }
-        };
-        self.renderer.add_node(render_node);
+        });
     }
     fn renderer_remove(&mut self, entity_id: &EntityId) {
         self.renderer.remove_node(entity_id);
@@ -177,6 +185,25 @@ impl ISubSystem for ViewportSubSystem {
     fn update(&mut self, system: &mut ISystem, delta_time: time::Duration) {
         self.fps_counter.add_frame(delta_time);
         self.window.set_title(&format!("pyramid {}", self.fps_counter.to_string()));
+        
+        self.resources.update();
+
+        let pending_adds = mem::replace(&mut self.pending_add, vec![]);
+        self.pending_add = pending_adds.into_iter().filter_map(|pending_add| {
+            let is_some = {
+                pending_add.resources.value().is_some()
+            };
+            if is_some {
+                self.renderer.add_node(RenderNode {
+                    id: pending_add.id,
+                    resources: pending_add.resources.into_value(),
+                    config: pending_add.config
+                });
+                return None;
+            } else {
+                return Some(pending_add);
+            }
+        }).collect();
 
         self.renderer.render();
         self.window.swap_buffers();

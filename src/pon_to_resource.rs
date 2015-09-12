@@ -38,6 +38,7 @@ fn pon_to_layout(layout_node_array: &Vec<Pon>) -> Result<Layout, PonTranslateErr
 }
 
 pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr> {
+    println!("Pon to mesh");
     let &TypedPon { type_name: ref type_name, ref data } = try!(node.translate());
 
     match type_name.as_str() {
@@ -69,6 +70,7 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr
 }
 
 pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PonTranslateErr> {
+    println!("Pon to texture");
     let &TypedPon { ref type_name, ref data } = try!(node.translate());
 
     match type_name.as_str() {
@@ -119,6 +121,7 @@ pub fn pon_to_texture(root_path: &Path, node: &Pon) -> Result<Texture, PonTransl
 }
 
 pub fn pon_to_shader(root_path: &Path, node: &Pon) -> Result<ShaderSource, PonTranslateErr> {
+    println!("Pon to shader");
     let &TypedPon { ref type_name, ref data } = try!(node.translate());
 
     match type_name.as_str() {
