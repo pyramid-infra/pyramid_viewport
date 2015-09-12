@@ -112,7 +112,7 @@ impl GLTexture {
             match image {
                 &Texture::Image(ref image) => {
                     gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as GLint, image.width() as GLint, image.height() as GLint, 0,
-                        gl::RGBA, gl::UNSIGNED_BYTE, mem::transmute(&image.clone().into_raw()[0]));
+                        gl::RGBA, gl::UNSIGNED_BYTE, mem::transmute(&(&**image as &[u8])[0]));
                 },
                 &Texture::Floats { ref width, ref height, ref data } => {
                     gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RED as GLint, *width as GLint, *height as GLint, 0,
