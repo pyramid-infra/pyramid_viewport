@@ -42,14 +42,14 @@ impl Resources {
             async_runner: AsyncRunner::new_pooled(4)
         }
     }
-    pub fn get(&mut self, document: &Document, mesh_key: &Pon, shader_program_key: &Pon, texture_keys: Vec<Pon>)
+    pub fn get(&mut self, document: &mut Document, mesh_key: &Pon, shader_program_key: &Pon, texture_keys: Vec<Pon>)
         -> Promise<RenderNodeResources> {
         let mut gl_shader_program = match self.gl_shader_programs.entry(shader_program_key.clone())  {
             Entry::Occupied(o) => {
                 o.into_mut()
             },
             Entry::Vacant(v) => {
-                let shader = pon_to_shader(&self.root_path, shader_program_key).unwrap();
+                let shader = pon_to_shader(&self.root_path, shader_program_key, &mut TranslateContext::from_doc(document)).unwrap();
                 let vs = &GLShader::new(&shader.vertex_src, gl::VERTEX_SHADER, &shader.vertex_debug_source_name);
                 let fs = &GLShader::new(&shader.fragment_src, gl::FRAGMENT_SHADER, &shader.fragment_debug_source_name);
                 v.insert(Promise::resolved(Rc::new(GLShaderProgram::new(vs, fs))))
@@ -73,7 +73,7 @@ impl Resources {
                             Entry::Vacant(v) => {
                                 let mesh_key = mesh_key.clone();
                                 let root_path = self.root_path.clone();
-                                let p = Promise::resolved(pon_to_mesh(document, &root_path, &mesh_key).unwrap());
+                                let p = Promise::resolved(pon_to_mesh(&root_path, &mesh_key, &mut TranslateContext::from_doc(document)).unwrap());
                                 v.insert(p)
                             }
                         }.then(|x| x.clone());
@@ -99,8 +99,9 @@ impl Resources {
                         Entry::Vacant(v) => {
                             let texture_key = texture_key.clone();
                             let root_path = self.root_path.clone();
-                            let p = self.async_runner
-                                .exec_async(move || pon_to_texture(&root_path, &texture_key).unwrap())
+                            let p = Promise::resolved(pon_to_texture(&root_path, &texture_key, &mut TranslateContext::from_doc(document)).unwrap())
+                            // let p = self.async_runner
+                            //     .exec_async(move || )
                                 .then_move(|texture| Rc::new(texture));
                             v.insert(p)
                         }

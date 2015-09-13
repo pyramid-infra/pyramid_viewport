@@ -36,16 +36,16 @@ impl ShaderUniform for Matrix4<f32> {
     }
 }
 
-impl<'a> Translatable<'a, ShaderUniforms> for Pon {
-    fn inner_translate(&'a self) -> Result<ShaderUniforms, PonTranslateErr> {
-        let obj: &HashMap<String, Pon> = try!(self.translate());
+impl<'a, 'b> Translatable<'a, 'b, ShaderUniforms> for Pon {
+    fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<ShaderUniforms, PonTranslateErr> {
+        let obj: &HashMap<String, Pon> = try!(self.translate(context));
         let mut res: Vec<(String, Box<ShaderUniform>)> = vec![];
         for (name, value) in obj {
-            if let Ok(v) = value.translate::<f32>() {
+            if let Ok(v) = value.translate::<f32>(context) {
                 res.push((name.to_string(), Box::new(v)));
-            } else if let Ok(v) = value.translate::<Vector3<f32>>() {
+            } else if let Ok(v) = value.translate::<Vector3<f32>>(context) {
                 res.push((name.to_string(), Box::new(v)));
-            } else if let Ok(v) = value.translate::<Matrix4<f32>>() {
+            } else if let Ok(v) = value.translate::<Matrix4<f32>>(context) {
                 res.push((name.to_string(), Box::new(v)));
             } else {
                 return Err(PonTranslateErr::InvalidValue { value: value.to_string() } )

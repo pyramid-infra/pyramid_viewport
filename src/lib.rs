@@ -125,7 +125,7 @@ impl ViewportSubSystem {
 
         let mut texture_keys_vec = vec![];
         let mut texture_ids = vec![];
-        for (name, texture_key) in texture_keys.translate::<&HashMap<String, Pon>>().unwrap() {
+        for (name, texture_key) in texture_keys.translate::<&HashMap<String, Pon>>(&mut TranslateContext::from_doc(document)).unwrap() {
             texture_ids.push(name.to_string());
             texture_keys_vec.push(texture_key.clone());
         }
@@ -136,15 +136,15 @@ impl ViewportSubSystem {
             config: RenderNodeConfig {
                 texture_ids: texture_ids,
                 transform: match document.get_property_value(&entity_id, "transformed") {
-                    Ok(trans) => trans.translate().unwrap(),
+                    Ok(trans) => trans.translate(&mut TranslateContext::from_doc(document)).unwrap(),
                     Err(err) => Matrix4::identity()
                 },
                 uniforms: match document.get_property_value(&entity_id, "uniforms") {
-                    Ok(uniforms) => uniforms.translate().unwrap(),
+                    Ok(uniforms) => uniforms.translate(&mut TranslateContext::from_doc(document)).unwrap(),
                     Err(err) => ShaderUniforms(vec![])
                 },
                 alpha: match document.get_property_value(&entity_id, "alpha") {
-                    Ok(trans) => *trans.translate::<&bool>().unwrap(),
+                    Ok(trans) => *trans.translate::<&bool>(&mut TranslateContext::from_doc(document)).unwrap(),
                     Err(err) => false
                 }
             }
@@ -174,14 +174,14 @@ impl ISubSystem for ViewportSubSystem {
         }
         for pr in prop_refs.iter().filter(|pr| pr.property_key == "transformed") {
             let transform = match document.get_property_value(&pr.entity_id, "transformed") {
-                Ok(trans) => trans.translate().unwrap(),
+                Ok(trans) => trans.translate(&mut TranslateContext::from_doc(document)).unwrap(),
                 Err(err) => Matrix4::identity()
             };
             self.renderer.set_transform(&pr.entity_id, transform);
         }
         for pr in prop_refs.iter().filter(|pr| pr.property_key == "camera") {
             let camera = match document.get_property_value(&pr.entity_id, "camera") {
-                Ok(trans) => trans.translate().unwrap(),
+                Ok(trans) => trans.translate(&mut TranslateContext::from_doc(document)).unwrap(),
                 Err(err) => Matrix4::identity()
             };
             self.renderer.camera = camera;
