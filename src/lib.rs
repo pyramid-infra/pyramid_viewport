@@ -152,6 +152,7 @@ impl ViewportSubSystem {
     }
     fn renderer_remove(&mut self, entity_id: &EntityId) {
         self.renderer.remove_node(entity_id);
+        self.pending_add.retain(|p| p.id != *entity_id);
     }
 }
 
