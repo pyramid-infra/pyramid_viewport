@@ -64,7 +64,8 @@ pub struct ViewportSubSystem {
     default_textures: Pon,
     fps_counter: FpsCounter,
     start_time: Timespec,
-    prev_time: Timespec
+    prev_time: Timespec,
+    first_load_timed: bool
 }
 
 impl ViewportSubSystem {
@@ -87,7 +88,8 @@ impl ViewportSubSystem {
             default_textures: Pon::from_string("{ diffuse: static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 } }").unwrap(),
             fps_counter: FpsCounter::new(),
             start_time: time::get_time(),
-            prev_time: time::get_time()
+            prev_time: time::get_time(),
+            first_load_timed: false
         };
 
         let shader_program = GLShaderProgram::new(
@@ -163,7 +165,7 @@ impl ISubSystem for ViewportSubSystem {
         //println!("CHANGED {:?}", prop_refs);
         let renderable_changed: HashSet<EntityId> = prop_refs.iter()
             .filter_map(|pr| {
-                if (pr.property_key == "mesh" || pr.property_key == "diffuse" || pr.property_key == "alpha") {
+                if pr.property_key == "mesh" || pr.property_key == "diffuse" || pr.property_key == "alpha" || pr.property_key == "uniforms" {
                     return Some(pr.entity_id);
                 } else {
                     return None;
@@ -215,7 +217,8 @@ impl ISubSystem for ViewportSubSystem {
                 return Some(pending_add);
             }
         }).collect();
-        if self.pending_add.len() == 0 && !pending_adds_was_0 {
+        if self.pending_add.len() == 0 && !pending_adds_was_0 && !self.first_load_timed {
+            self.first_load_timed = true;
             println!("All entities added to renderer. {} ms", total_time.num_milliseconds());
         }
 
