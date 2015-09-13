@@ -6,6 +6,7 @@ use pyramid::document::*;
 use mesh::*;
 
 use std::path::Path;
+use std::path::PathBuf;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
@@ -13,6 +14,8 @@ use std::io::Cursor;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::borrow::Cow;
 use std::rc::Rc;
+use ppromise::*;
+use std::mem;
 
 #[derive(Debug)]
 pub struct ShaderSource {
@@ -77,7 +80,54 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon, context: &mut TranslateContext)
     }
 }
 
-pub fn pon_to_texture(root_path: &Path, node: &Pon, context: &mut TranslateContext) -> Result<Texture, PonTranslateErr> {
+pub trait LoadableTexture {
+    fn load(&mut self, async_runner: &mut AsyncRunner) -> Promise<Texture>;
+}
+struct StaticTexture {
+    texture: Option<Texture>
+}
+impl LoadableTexture for StaticTexture {
+    fn load(&mut self, async_runner: &mut AsyncRunner) -> Promise<Texture> {
+        let texture = mem::replace(&mut self.texture, None);
+        Promise::resolved(texture.unwrap())
+    }
+}
+struct TextureFromFile {
+    path: PathBuf
+}
+impl LoadableTexture for TextureFromFile {
+    fn load(&mut self, async_runner: &mut AsyncRunner) -> Promise<Texture> {
+        let path = self.path.clone();
+        async_runner.exec_async(move || {
+            println!("Loading image {:?}", path);
+            if path.extension().unwrap().to_str().unwrap() == "dhm" {
+                let mut f = File::open(&path).unwrap();
+                let mut data = vec![];
+                f.read_to_end(&mut data);
+                let mut rdr = Cursor::new(data);
+                let width = rdr.read_i32::<LittleEndian>().unwrap() as u32;
+                let height = rdr.read_i32::<LittleEndian>().unwrap() as u32;
+                println!("SIZE {}, {}", width, height);
+                let mut data = vec![];
+                for y in 0..height {
+                    for x in 0..width {
+                        data.push(rdr.read_f32::<LittleEndian>().unwrap());
+                    }
+                }
+                return Texture::Floats { width: width, height: height, data: data }
+            } else {
+                let img = image::open(&path);
+                println!("Image loaded!");
+                return match img {
+                    Ok(img) => Texture::Image(img.to_rgba()),
+                    Err(err) => panic!("Failed to load image: {}: {:?}", path.to_str().unwrap(), err)
+                };
+            }
+        })
+    }
+}
+
+pub fn pon_to_texture(root_path: &Path, node: &Pon, context: &mut TranslateContext) -> Result<Box<LoadableTexture>, PonTranslateErr> {
     println!("Pon to texture");
     let &TypedPon { ref type_name, ref data } = try!(node.translate(context));
 
@@ -91,38 +141,14 @@ pub fn pon_to_texture(root_path: &Path, node: &Pon, context: &mut TranslateConte
                 return Err(PonTranslateErr::Generic(format!("Expected {} pixels, found {}", width * height * 4, pixel_data.len())));
             }
             return match RgbaImage::from_raw(width, height, pixel_data) {
-                Some(image) => Ok(Texture::Image(image)),
+                Some(image) => Ok(Box::new(StaticTexture { texture: Some(Texture::Image(image)) })),
                 None => Err(PonTranslateErr::Generic("Failed to create image in static_texture".to_string()))
             }
         },
         "texture_from_file" => {
             let filename = try!(data.translate::<&str>(context));
             let path_buff = root_path.join(Path::new(filename));
-            let path = path_buff.as_path();
-            println!("Loading image {:?}", path);
-            if path.extension().unwrap().to_str().unwrap() == "dhm" {
-                let mut f = File::open(path).unwrap();
-                let mut data = vec![];
-                f.read_to_end(&mut data);
-                let mut rdr = Cursor::new(data);
-                let width = rdr.read_i32::<LittleEndian>().unwrap() as u32;
-                let height = rdr.read_i32::<LittleEndian>().unwrap() as u32;
-                println!("SIZE {}, {}", width, height);
-                let mut data = vec![];
-                for y in 0..height {
-                    for x in 0..width {
-                        data.push(rdr.read_f32::<LittleEndian>().unwrap());
-                    }
-                }
-                return Ok(Texture::Floats { width: width, height: height, data: data })
-            } else {
-                let img = image::open(&path);
-                println!("Image loaded!");
-                return match img {
-                    Ok(img) => Ok(Texture::Image(img.to_rgba())),
-                    Err(err) => Err(PonTranslateErr::Generic(format!("Failed to load image: {}: {:?}", filename, err)))
-                };
-            }
+            Ok(Box::new(TextureFromFile { path: path_buff }))
         },
         _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
     }

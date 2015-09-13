@@ -99,9 +99,7 @@ impl Resources {
                         Entry::Vacant(v) => {
                             let texture_key = texture_key.clone();
                             let root_path = self.root_path.clone();
-                            let p = Promise::resolved(pon_to_texture(&root_path, &texture_key, &mut TranslateContext::from_doc(document)).unwrap())
-                            // let p = self.async_runner
-                            //     .exec_async(move || )
+                            let p = pon_to_texture(&root_path, &texture_key, &mut TranslateContext::from_doc(document)).unwrap().load(&mut self.async_runner)
                                 .then_move(|texture| Rc::new(texture));
                             v.insert(p)
                         }
