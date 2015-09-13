@@ -6,6 +6,7 @@ use pon_to_resource::*;
 use renderer::*;
 use mesh::*;
 use gl::types::*;
+use pyramid::document::*;
 
 use std::path::PathBuf;
 use std::collections::HashMap;
@@ -41,7 +42,7 @@ impl Resources {
             async_runner: AsyncRunner::new_pooled(4)
         }
     }
-    pub fn get(&mut self, mesh_key: &Pon, shader_program_key: &Pon, texture_keys: Vec<Pon>)
+    pub fn get(&mut self, document: &Document, mesh_key: &Pon, shader_program_key: &Pon, texture_keys: Vec<Pon>)
         -> Promise<RenderNodeResources> {
         let mut gl_shader_program = match self.gl_shader_programs.entry(shader_program_key.clone())  {
             Entry::Occupied(o) => {
@@ -72,9 +73,7 @@ impl Resources {
                             Entry::Vacant(v) => {
                                 let mesh_key = mesh_key.clone();
                                 let root_path = self.root_path.clone();
-                                let p = self.async_runner
-                                    .exec_async(move || pon_to_mesh(&root_path, &mesh_key).unwrap())
-                                    .then_move(|mesh| { println!("mesh to rc"); Rc::new(mesh) });
+                                let p = Promise::resolved(pon_to_mesh(document, &root_path, &mesh_key).unwrap());
                                 v.insert(p)
                             }
                         }.then(|x| x.clone());

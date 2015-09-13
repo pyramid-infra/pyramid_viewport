@@ -2,6 +2,7 @@ extern crate image;
 
 use image::RgbaImage;
 use pyramid::pon::*;
+use pyramid::document::*;
 use mesh::*;
 
 use std::path::Path;
@@ -11,6 +12,7 @@ use std::io::prelude::*;
 use std::io::Cursor;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::borrow::Cow;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct ShaderSource {
@@ -39,7 +41,7 @@ fn pon_to_layout(layout_node_array: &Vec<Pon>) -> Result<Layout, PonTranslateErr
     Ok(Layout::new(layout))
 }
 
-pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr> {
+pub fn pon_to_mesh(document: &Document, root_path: &Path, node: &Pon) -> Result<Rc<Mesh>, PonTranslateErr> {
     println!("Pon to mesh");
     let &TypedPon { type_name: ref type_name, ref data } = try!(node.translate());
 
@@ -50,11 +52,15 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr
             let vertices = try!(data.field_as::<Cow<Vec<f32>>>("vertices")).into_owned();
             let indices = try!(data.field_as::<Cow<Vec<i64>>>("indices")).into_owned();
 
-            return Ok(Mesh {
+            return Ok(Rc::new(Mesh {
                 layout: layout,
                 vertex_data: vertices,
                 element_data: indices.iter().map(|x| *x as u32).collect()
-            });
+            }));
+        },
+        "mesh_from_resource" => {
+            let resource_id = try!(data.translate::<&str>());
+            return Ok(document.resources.get(resource_id).unwrap().downcast_ref::<Rc<Mesh>>().unwrap().clone());
         },
         "grid_mesh" => {
             let mut grid = Grid::new();
@@ -65,7 +71,7 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon) -> Result<Mesh, PonTranslateErr
             grid.n_vertices_width = try!(data.field_as::<i64>("n_vertices_width")) as u32;
             grid.n_vertices_height = try!(data.field_as::<i64>("n_vertices_height")) as u32;
 
-            return Ok(grid.into());
+            return Ok(Rc::new(grid.into()));
         },
         _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
     }

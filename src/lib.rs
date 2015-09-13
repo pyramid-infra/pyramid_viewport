@@ -132,7 +132,7 @@ impl ViewportSubSystem {
 
         self.pending_add.push(PendingAdd {
             id: entity_id.clone(),
-            resources: self.resources.get(&mesh_key, &shader_key, texture_keys_vec),
+            resources: self.resources.get(document, &mesh_key, &shader_key, texture_keys_vec),
             config: RenderNodeConfig {
                 texture_ids: texture_ids,
                 transform: match document.get_property_value(&entity_id, "transformed") {
