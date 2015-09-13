@@ -22,7 +22,7 @@ mod shader_uniforms;
 use pyramid::interface::*;
 use pyramid::pon::*;
 use pyramid::document::*;
-use pyramid::*;
+use pyramid::system::*;
 
 use mesh::*;
 
@@ -63,7 +63,8 @@ pub struct ViewportSubSystem {
     pending_add: Vec<PendingAdd>,
     default_textures: Pon,
     fps_counter: FpsCounter,
-    total_time: Duration
+    start_time: Timespec,
+    prev_time: Timespec
 }
 
 impl ViewportSubSystem {
@@ -85,7 +86,8 @@ impl ViewportSubSystem {
             pending_add: vec![],
             default_textures: Pon::from_string("{ diffuse: static_texture { pixels: [255, 0, 0, 255], width: 1, height: 1 } }").unwrap(),
             fps_counter: FpsCounter::new(),
-            total_time: Duration::zero()
+            start_time: time::get_time(),
+            prev_time: time::get_time()
         };
 
         let shader_program = GLShaderProgram::new(
@@ -100,19 +102,19 @@ impl ViewportSubSystem {
 
 impl ViewportSubSystem {
 
-    fn renderer_add(&mut self, system: &ISystem, entity_id: &EntityId) {
-        let shader_key: Pon = match system.get_property_value(entity_id, "shader") {
+    fn renderer_add(&mut self, document: &mut Document, entity_id: &EntityId) {
+        let shader_key: Pon = match document.get_property_value(entity_id, "shader") {
             Ok(shader) => shader.clone(),
             Err(err) => Pon::String("basic".to_string())
         };
-        let mesh_key: Pon = match system.get_property_value(entity_id, "mesh") {
+        let mesh_key: Pon = match document.get_property_value(entity_id, "mesh") {
             Ok(mesh) => mesh.clone(),
             Err(err) => return ()
         };
-        let texture_keys: Pon = match system.get_property_value(entity_id, "textures") {
+        let texture_keys: Pon = match document.get_property_value(entity_id, "textures") {
             Ok(textures) => textures.clone(),
             Err(err) => {
-                match system.get_property_value(entity_id, "diffuse") {
+                match document.get_property_value(entity_id, "diffuse") {
                     Ok(diffuse) => Pon::Object(hashmap![
                         "diffuse".to_string() => diffuse.clone()
                     ]),
@@ -133,15 +135,15 @@ impl ViewportSubSystem {
             resources: self.resources.get(&mesh_key, &shader_key, texture_keys_vec),
             config: RenderNodeConfig {
                 texture_ids: texture_ids,
-                transform: match system.get_property_value(&entity_id, "transformed") {
+                transform: match document.get_property_value(&entity_id, "transformed") {
                     Ok(trans) => trans.translate().unwrap(),
                     Err(err) => Matrix4::identity()
                 },
-                uniforms: match system.get_property_value(&entity_id, "uniforms") {
+                uniforms: match document.get_property_value(&entity_id, "uniforms") {
                     Ok(uniforms) => uniforms.translate().unwrap(),
                     Err(err) => ShaderUniforms(vec![])
                 },
-                alpha: match system.get_property_value(&entity_id, "alpha") {
+                alpha: match document.get_property_value(&entity_id, "alpha") {
                     Ok(trans) => *trans.translate::<&bool>().unwrap(),
                     Err(err) => false
                 }
@@ -155,7 +157,8 @@ impl ViewportSubSystem {
 
 impl ISubSystem for ViewportSubSystem {
 
-    fn on_property_value_change(&mut self, system: &mut ISystem, prop_refs: &Vec<PropRef>) {
+    fn on_property_value_change(&mut self, system: &mut System, prop_refs: &Vec<PropRef>) {
+        let document = system.document_mut();
         //println!("CHANGED {:?}", prop_refs);
         let renderable_changed: HashSet<EntityId> = prop_refs.iter()
             .filter_map(|pr| {
@@ -167,17 +170,17 @@ impl ISubSystem for ViewportSubSystem {
             }).collect();
         for entity_id in renderable_changed {
             self.renderer_remove(&entity_id);
-            self.renderer_add(system, &entity_id);
+            self.renderer_add(document, &entity_id);
         }
         for pr in prop_refs.iter().filter(|pr| pr.property_key == "transformed") {
-            let transform = match system.get_property_value(&pr.entity_id, "transformed") {
+            let transform = match document.get_property_value(&pr.entity_id, "transformed") {
                 Ok(trans) => trans.translate().unwrap(),
                 Err(err) => Matrix4::identity()
             };
             self.renderer.set_transform(&pr.entity_id, transform);
         }
         for pr in prop_refs.iter().filter(|pr| pr.property_key == "camera") {
-            let camera = match system.get_property_value(&pr.entity_id, "camera") {
+            let camera = match document.get_property_value(&pr.entity_id, "camera") {
                 Ok(trans) => trans.translate().unwrap(),
                 Err(err) => Matrix4::identity()
             };
@@ -185,8 +188,10 @@ impl ISubSystem for ViewportSubSystem {
         }
     }
 
-    fn update(&mut self, system: &mut ISystem, delta_time: time::Duration) {
-        self.total_time = self.total_time + delta_time;
+    fn update(&mut self, system: &mut System) {
+        let delta_time = time::get_time() - self.prev_time;
+        self.prev_time = time::get_time();
+        let total_time = time::get_time() - self.start_time;
         self.fps_counter.add_frame(delta_time);
         self.window.set_title(&format!("pyramid {}", self.fps_counter.to_string()));
 
@@ -210,7 +215,7 @@ impl ISubSystem for ViewportSubSystem {
             }
         }).collect();
         if self.pending_add.len() == 0 && !pending_adds_was_0 {
-            println!("All entities added to renderer. {} ms", self.total_time.num_milliseconds());
+            println!("All entities added to renderer. {} ms", total_time.num_milliseconds());
         }
 
         self.renderer.render();
