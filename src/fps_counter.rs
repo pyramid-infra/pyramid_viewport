@@ -37,9 +37,9 @@ impl ToString for FpsCounter {
             false => "".to_string()
         };
         if self.fps < 10.0 {
-            format!("{:.3} fps {}", self.fps, tot)
+            format!("{:.3} fps, {:.3} ms/f {}", self.fps, 1000.0/self.fps, tot)
         } else {
-            format!("{:.0} fps {}", self.fps, tot)
+            format!("{:.0} fps, {:.5} ms/f {}", self.fps, 1000.0/self.fps, tot)
         }
     }
 }
