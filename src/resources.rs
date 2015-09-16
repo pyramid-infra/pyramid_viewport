@@ -42,14 +42,17 @@ impl Resources {
             async_runner: AsyncRunner::new_pooled(4)
         }
     }
-    pub fn get(&mut self, document: &mut Document, mesh_key: &Pon, shader_program_key: &Pon, texture_keys: Vec<Pon>)
+    pub fn get(&mut self, document: &mut Document, mesh_key: Pon, shader_program_key: Pon, texture_keys: Vec<Pon>)
         -> Promise<RenderNodeResources> {
+        let mesh_key = mesh_key.concretize().unwrap();
+        let shader_program_key = shader_program_key.concretize().unwrap();
+        let texture_keys: Vec<Pon> = texture_keys.into_iter().map(|x| x.concretize().unwrap()).collect();
         let mut gl_shader_program = match self.gl_shader_programs.entry(shader_program_key.clone())  {
             Entry::Occupied(o) => {
                 o.into_mut()
             },
             Entry::Vacant(v) => {
-                let shader = pon_to_shader(&self.root_path, shader_program_key, &mut TranslateContext::from_doc(document)).unwrap();
+                let shader = pon_to_shader(&self.root_path, &shader_program_key, &mut TranslateContext::from_doc(document)).unwrap();
                 let vs = &GLShader::new(&shader.vertex_src, gl::VERTEX_SHADER, &shader.vertex_debug_source_name);
                 let fs = &GLShader::new(&shader.fragment_src, gl::FRAGMENT_SHADER, &shader.fragment_debug_source_name);
                 v.insert(Promise::resolved(Rc::new(GLShaderProgram::new(vs, fs))))

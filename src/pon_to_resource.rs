@@ -35,49 +35,54 @@ pub enum Texture {
     }
 }
 
-fn pon_to_layout(layout_node_array: &Vec<Pon>, context: &mut TranslateContext) -> Result<Layout, PonTranslateErr> {
-    let mut layout = vec![];
-    for p in layout_node_array {
-        let p = try!(p.translate::<&Vec<Pon>>(context));
-        layout.push(AttributeSpec(try!(p[0].translate::<&str>(context)).to_string(), try!(p[1].translate::<i64>(context)) as usize));
+pub struct LocalAttributeSpec(AttributeSpec);
+
+impl Translatable<LocalAttributeSpec> for Pon {
+    fn inner_translate(&self, context: &mut TranslateContext) -> Result<LocalAttributeSpec, PonTranslateErr> {
+        self.as_array(|p| {
+                Ok(LocalAttributeSpec(AttributeSpec(try!(p[0].translate::<String>(context)), try!(p[1].translate::<i64>(context)) as usize)))
+        })
     }
-    Ok(Layout::new(layout))
 }
 
 pub fn pon_to_mesh(root_path: &Path, node: &Pon, context: &mut TranslateContext) -> Result<Rc<Mesh>, PonTranslateErr> {
     println!("Pon to mesh");
-    let &TypedPon { type_name: ref type_name, ref data } = try!(node.translate(context));
+    node.as_typed(|&TypedPon { type_name: ref type_name, ref data }| {
+        match type_name.as_str() {
+            "static_mesh" => {
+                let attribs = try!(data.field_as::<PonAutoVec<LocalAttributeSpec>>("layout", context)).0.into_iter().map(|x| x.0).collect();
+                let layout = Layout::new(attribs);
+                let vertices = try!(data.field_as::<Vec<f32>>("vertices", context));
+                let indices = try!(data.field_as::<Vec<i64>>("indices", context));
 
-    match type_name.as_str() {
-        "static_mesh" => {
-            let layout_node_array = try!(data.field_as::<&Vec<Pon>>("layout", context));
-            let layout = try!(pon_to_layout(layout_node_array, context));
-            let vertices = try!(data.field_as::<Cow<Vec<f32>>>("vertices", context)).into_owned();
-            let indices = try!(data.field_as::<Cow<Vec<i64>>>("indices", context)).into_owned();
+                return Ok(Rc::new(Mesh {
+                    layout: layout,
+                    vertex_data: vertices,
+                    element_data: indices.iter().map(|x| *x as u32).collect()
+                }));
+            },
+            "mesh_from_resource" => {
+                let resource_id = try!(data.translate::<String>(context));
+                return Ok(context.document.unwrap().resources.get(&resource_id).unwrap().downcast_ref::<Rc<Mesh>>().unwrap().clone());
+            },
+            "grid_mesh" => {
+                let mut grid = Grid::new();
+                let layout = match data.field_as::<PonAutoVec<LocalAttributeSpec>>("layout", context) {
+                    Ok(attrs) => {
+                        let attribs = attrs.0.into_iter().map(|x| x.0).collect();
+                        Layout::new(attribs)
+                    },
+                    Err(_) => Layout::position_texcoord_normal()
+                };
+                grid.layout = layout;
+                grid.n_vertices_width = try!(data.field_as::<i64>("n_vertices_width", context)) as u32;
+                grid.n_vertices_height = try!(data.field_as::<i64>("n_vertices_height", context)) as u32;
 
-            return Ok(Rc::new(Mesh {
-                layout: layout,
-                vertex_data: vertices,
-                element_data: indices.iter().map(|x| *x as u32).collect()
-            }));
-        },
-        "mesh_from_resource" => {
-            let resource_id = try!(data.translate::<&str>(context));
-            return Ok(context.document.unwrap().resources.get(resource_id).unwrap().downcast_ref::<Rc<Mesh>>().unwrap().clone());
-        },
-        "grid_mesh" => {
-            let mut grid = Grid::new();
-            grid.layout = match data.field_as::<&Vec<Pon>>("layout", context) {
-                Ok(layout_node_array) => try!(pon_to_layout(layout_node_array, context)),
-                _ => Layout::position_texcoord_normal()
-            };
-            grid.n_vertices_width = try!(data.field_as::<i64>("n_vertices_width", context)) as u32;
-            grid.n_vertices_height = try!(data.field_as::<i64>("n_vertices_height", context)) as u32;
-
-            return Ok(Rc::new(grid.into()));
-        },
-        _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
-    }
+                return Ok(Rc::new(grid.into()));
+            },
+            _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
+        }
+    })
 }
 
 pub trait LoadableTexture {
@@ -129,62 +134,63 @@ impl LoadableTexture for TextureFromFile {
 
 pub fn pon_to_texture(root_path: &Path, node: &Pon, context: &mut TranslateContext) -> Result<Box<LoadableTexture>, PonTranslateErr> {
     println!("Pon to texture");
-    let &TypedPon { ref type_name, ref data } = try!(node.translate(context));
-
-    match type_name.as_str() {
-        "static_texture" => {
-            let pixel_data = try!(data.field_as::<Cow<Vec<i64>>>("pixels", context));
-            let pixel_data: Vec<u8> = pixel_data.iter().map(|x| *x as u8).collect();
-            let width = try!(data.field_as::<i64>("width", context)) as u32;
-            let height = try!(data.field_as::<i64>("height", context)) as u32;
-            if width * height * 4 != pixel_data.len() as u32 {
-                return Err(PonTranslateErr::Generic(format!("Expected {} pixels, found {}", width * height * 4, pixel_data.len())));
-            }
-            return match RgbaImage::from_raw(width, height, pixel_data) {
-                Some(image) => Ok(Box::new(StaticTexture { texture: Some(Texture::Image(image)) })),
-                None => Err(PonTranslateErr::Generic("Failed to create image in static_texture".to_string()))
-            }
-        },
-        "texture_from_file" => {
-            let filename = try!(data.translate::<&str>(context));
-            let path_buff = root_path.join(Path::new(filename));
-            Ok(Box::new(TextureFromFile { path: path_buff }))
-        },
-        _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
-    }
+    node.as_typed(|&TypedPon { ref type_name, ref data }| -> Result<Box<LoadableTexture>, PonTranslateErr> {
+        match type_name.as_str() {
+            "static_texture" => {
+                let pixel_data = try!(data.field_as::<Vec<i64>>("pixels", context));
+                let pixel_data: Vec<u8> = pixel_data.iter().map(|x| *x as u8).collect();
+                let width = try!(data.field_as::<i64>("width", context)) as u32;
+                let height = try!(data.field_as::<i64>("height", context)) as u32;
+                if width * height * 4 != pixel_data.len() as u32 {
+                    return Err(PonTranslateErr::Generic(format!("Expected {} pixels, found {}", width * height * 4, pixel_data.len())));
+                }
+                return match RgbaImage::from_raw(width, height, pixel_data) {
+                    Some(image) => Ok(Box::new(StaticTexture { texture: Some(Texture::Image(image)) })),
+                    None => Err(PonTranslateErr::Generic("Failed to create image in static_texture".to_string()))
+                }
+            },
+            "texture_from_file" => {
+                let filename = try!(data.translate::<String>(context));
+                let path_buff = root_path.join(Path::new(&filename));
+                Ok(Box::new(TextureFromFile { path: path_buff }))
+            },
+            _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
+        }
+    })
 }
 
 pub fn pon_to_shader(root_path: &Path, node: &Pon, context: &mut TranslateContext) -> Result<ShaderSource, PonTranslateErr> {
     println!("Pon to shader");
-    let &TypedPon { ref type_name, ref data } = try!(node.translate(context));
+    node.as_typed(|&TypedPon { ref type_name, ref data }| {
+        match type_name.as_str() {
+            "shader_program" => {
+                let vertex = (try!(data.field("vertex"))).as_typed(|&TypedPon { ref type_name, ref data }| {
+                    let string_arg = data.translate::<String>(context).unwrap();
+                    match type_name.as_str() {
+                        "shader_from_file" => Ok(string_from_file(&root_path.join(Path::new(&string_arg)))),
+                        "static_shader" => Ok(string_arg),
+                        _ => return Err(PonTranslateErr::UnrecognizedType(type_name.to_string()))
+                    }
+                });
+                let fragment = (try!(data.field("fragment"))).as_typed(|&TypedPon { ref type_name, ref data }| {
+                    let string_arg = data.translate::<String>(context).unwrap();
+                    match type_name.as_str() {
+                        "shader_from_file" => Ok(string_from_file(&root_path.join(Path::new(&string_arg)))),
+                        "static_shader" => Ok(string_arg),
+                        _ => return Err(PonTranslateErr::UnrecognizedType(type_name.to_string()))
+                    }
+                });
 
-    match type_name.as_str() {
-        "shader_program" => {
-            let vertex = try!(data.field_as::<&TypedPon>("vertex", context));
-            let fragment = try!(data.field_as::<&TypedPon>("fragment", context));
-
-            let vertex_string_arg = try!(vertex.data.translate::<&str>(context)).to_string();
-            let vertex_src = match vertex.type_name.as_str() {
-                "shader_from_file" => string_from_file(&root_path.join(Path::new(&vertex_string_arg))),
-                "static_shader" => vertex_string_arg,
-                _ => return Err(PonTranslateErr::UnrecognizedType(vertex.type_name.to_string()))
-            };
-            let fragment_string_arg = try!(fragment.data.translate::<&str>(context)).to_string();
-            let fragment_src = match fragment.type_name.as_str() {
-                "shader_from_file" => string_from_file(&root_path.join(Path::new(&fragment_string_arg))),
-                "static_shader" => fragment_string_arg,
-                _ => return Err(PonTranslateErr::UnrecognizedType(fragment.type_name.to_string()))
-            };
-
-            return Ok(ShaderSource {
-                vertex_src: vertex_src,
-                vertex_debug_source_name: vertex.to_string(),
-                fragment_src: fragment_src,
-                fragment_debug_source_name: fragment.to_string()
-            })
-        },
-        _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
-    }
+                return Ok(ShaderSource {
+                    vertex_src: try!(vertex),
+                    vertex_debug_source_name: data.to_string(),
+                    fragment_src: try!(fragment),
+                    fragment_debug_source_name: data.to_string()
+                })
+            },
+            _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
+        }
+    })
 }
 
 fn string_from_file(path: &Path) -> String {
