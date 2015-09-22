@@ -68,10 +68,10 @@ impl Renderer {
             gl::BindVertexArray(node.resources.vertex_array.vao);
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, node.resources.vertex_array.mesh.ebo);
 
+            let view_projection_loc = gl::GetUniformLocation(node.resources.shader.program, CString::new("viewProjection").unwrap().as_ptr());
+            self.camera.gl_write_to_uniform(view_projection_loc);
             let trans_loc = gl::GetUniformLocation(node.resources.shader.program, CString::new("transform").unwrap().as_ptr());
-
-            let transform = self.camera * node.config.transform;
-            transform.gl_write_to_uniform(trans_loc);
+            node.config.transform.gl_write_to_uniform(trans_loc);
 
             for &(ref name, ref uniform) in &node.config.uniforms.0 {
                 let loc = gl::GetUniformLocation(node.resources.shader.program, CString::new(name.to_string()).unwrap().as_ptr());
