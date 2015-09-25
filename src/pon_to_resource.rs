@@ -4,6 +4,7 @@ use image::RgbaImage;
 use pyramid::pon::*;
 use pyramid::document::*;
 use mesh::*;
+use cgmath::*;
 
 use std::path::Path;
 use std::path::PathBuf;
@@ -79,6 +80,21 @@ pub fn pon_to_mesh(root_path: &Path, node: &Pon, context: &mut TranslateContext)
                 grid.n_vertices_height = try!(data.field_as::<i64>("n_vertices_height", context)) as u32;
 
                 return Ok(Rc::new(grid.into()));
+            },
+            "box_mesh" => {
+                let mut box_mesh = Box3::new();
+                let layout = match data.field_as::<PonAutoVec<LocalAttributeSpec>>("layout", context) {
+                    Ok(attrs) => {
+                        let attribs = attrs.0.into_iter().map(|x| x.0).collect();
+                        Layout::new(attribs)
+                    },
+                    Err(_) => Layout::position_texcoord_normal()
+                };
+                box_mesh.layout = layout;
+                box_mesh.position = try!(data.field_as_or::<Vector3<f32>>("position", Vector3::zero(), context));
+                box_mesh.size = try!(data.field_as_or::<Vector3<f32>>("size", Vector3::one(), context));
+
+                return Ok(Rc::new(box_mesh.into()));
             },
             _ => Err(PonTranslateErr::UnrecognizedType(type_name.clone()))
         }
